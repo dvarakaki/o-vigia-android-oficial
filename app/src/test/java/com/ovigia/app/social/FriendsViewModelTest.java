@@ -95,6 +95,22 @@ public class FriendsViewModelTest {
     }
 
     @Test
+    public void unexpectedFailureWhileLoading_showsTheErrorStepInsteadOfCrashing() {
+        accounts.linkCloud(accounts.currentAccount().id, "uid-1", "davi@exemplo.com");
+        backend.sessionFailure = new IllegalStateException("falha ao ler a sessão online");
+        FriendsViewModel vm = newViewModel();
+        vm.start();
+
+        FriendsUiState state = vm.state().getValue();
+        assertEquals(Status.ERROR, state.status);
+        assertEquals(SocialException.Error.UNKNOWN, state.error);
+
+        backend.sessionFailure = null;
+        vm.refresh();
+        assertEquals("tentar de novo volta ao fluxo normal", Status.NEEDS_CONNECTION, vm.state().getValue().status);
+    }
+
+    @Test
     public void offlineWhileLoading_showsTheErrorStep_andRetryRecovers() {
         onlineAs("davi");
         backend.offline = true;

@@ -14,6 +14,7 @@ import java.util.concurrent.Executor;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -163,6 +164,53 @@ public class LearningStoreTest {
         LearningStore store = new LearningStore(() -> file, direct);
         assertEquals(0, store.stats(ACCOUNT).gamesPlayed);
         assertEquals(1.0, store.popularityBoost(ACCOUNT, 7), 1e-9);
+    }
+
+    /**
+     * Arquivo como os releases 1.1.0 a 1.2.2 gravaram: sem regra de keep para o bloco da conta,
+     * o R8 renomeou os campos (a…f) e, depois de reabrir o app, regravou os números como 2.0.
+     */
+    private static final String OBFUSCATED_FILE = "{\"byAccount\":{\"" + ACCOUNT + "\":{"
+            + "\"a\":{\"7\":2.0},"
+            + "\"b\":{\"7\":{\"power_voo\":[2.0,2.0]}},"
+            + "\"c\":[{\"answers\":[{\"key\":\"power_voo\",\"value\":1.0}],\"correctId\":7,"
+            + "\"outcome\":\"ENGINE_GUESSED\",\"timestamp\":1000}],"
+            + "\"d\":2,\"e\":1,\"f\":4}}}";
+
+    @Test
+    public void fileWrittenWithObfuscatedFieldNames_isReadBackWithEverythingTheReleaseSaved() throws Exception {
+        Files.write(file.toPath(), OBFUSCATED_FILE.getBytes(StandardCharsets.UTF_8));
+        LearningStore store = new LearningStore(() -> file, direct);
+
+        LearningStore.PlayerHistory history = store.history(ACCOUNT, 5, 5);
+
+        assertEquals(2, history.stats.gamesPlayed);
+        assertEquals(1, history.stats.engineWins);
+        assertEquals("os trazidos da nuvem contam mais que os vistos aqui", 4, history.stats.distinctCharacters);
+        assertEquals(1, history.favorites.size());
+        assertEquals(7, history.favorites.get(0).characterId);
+        assertEquals(2, history.favorites.get(0).count);
+        assertEquals(1, history.recentGames.size());
+        assertEquals(LearningStore.Outcome.ENGINE_GUESSED, history.recentGames.get(0).outcome);
+        assertEquals(1000L, history.recentGames.get(0).timestamp);
+        assertTrue(store.popularityBoost(ACCOUNT, 7) > 1.0);
+        assertNotNull(store.blendedBelief(ACCOUNT, 7, "power_voo", 0.1));
+    }
+
+    @Test
+    public void fileWrittenWithObfuscatedFieldNames_isRewrittenWithTheRealNamesOnTheNextSave() throws Exception {
+        Files.write(file.toPath(), OBFUSCATED_FILE.getBytes(StandardCharsets.UTF_8));
+        LearningStore store = new LearningStore(() -> file, direct);
+        store.recordGame(ACCOUNT, 7, answers("power_voo", 1.0), LearningStore.Outcome.PICKED_FROM_ALTERNATIVES);
+
+        String saved = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+        assertTrue(saved.contains("\"picksById\""));
+        assertFalse("não sobra o nome ofuscado", saved.contains("\"a\":"));
+
+        LearningStore.PlayerHistory reopened = new LearningStore(() -> file, direct).history(ACCOUNT, 5, 5);
+        assertEquals("as duas partidas do release mais a nova", 3, reopened.stats.gamesPlayed);
+        assertEquals(3, reopened.favorites.get(0).count);
+        assertEquals(LearningStore.Outcome.PICKED_FROM_ALTERNATIVES, reopened.recentGames.get(0).outcome);
     }
 
     @Test

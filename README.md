@@ -71,10 +71,15 @@ Como funciona:
 
 | Comando | O que faz |
 |---|---|
-| `./gradlew testDebugUnitTest` | Testes JVM (motor, ViewModel, aprendizado, dados curados, tradução) |
+| `./gradlew testDebugUnitTest` | Testes JVM (motor, ViewModel, aprendizado, dados curados, tradução, regras do R8) |
 | `./gradlew connectedDebugAndroidTest` | Testes que precisam de aparelho (o tradutor do ML Kit) |
 | `./gradlew lintDebug` | Lint (quebra o build em erro) |
 | `./gradlew assembleRelease` | APK de release com R8 (encolhido e ofuscado) |
+
+Tudo que o Gson lê ou grava em JSON precisa de regra em `app/src/main/keepRules/rules.keep`: sem ela o R8
+renomeia os campos e apaga o tipo genérico, e os dados voltam do disco com o tipo errado só depois de reabrir
+o app — coisa que os testes JVM não enxergam. O `KeepRulesTest` confere isso; ao criar um arquivo JSON novo,
+acrescente a classe raiz à lista dele.
 
 ## Publicação
 

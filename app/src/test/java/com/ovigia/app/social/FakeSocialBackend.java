@@ -19,6 +19,8 @@ public final class FakeSocialBackend implements SocialBackend {
     boolean configured = true;
     /** Toda operação falha com OFFLINE. */
     boolean offline = false;
+    /** Ler a sessão estoura com essa exceção (algo que ninguém previu, como um bug ao iniciar o SDK). */
+    RuntimeException sessionFailure = null;
 
     private final Map<String, String> uidByEmail = new HashMap<>();
     private final Map<String, String> passwordByUid = new HashMap<>();
@@ -81,6 +83,7 @@ public final class FakeSocialBackend implements SocialBackend {
     @Nullable
     @Override
     public String signedInUid() {
+        if (sessionFailure != null) throw sessionFailure;
         return signedInUid;
     }
 

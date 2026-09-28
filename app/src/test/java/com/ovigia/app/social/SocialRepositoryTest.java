@@ -380,4 +380,15 @@ public class SocialRepositoryTest {
         repository.publishQuietly();
         assertEquals(0, backend.publishCount);
     }
+
+    @Test
+    public void publishQuietly_neverThrows_evenWhenTheSessionCannotBeRead() throws SocialException {
+        readyAs("davi");
+        backend.sessionFailure = new IllegalStateException("falha ao ler a sessão online");
+
+        // Roda solto numa thread de fundo: uma exceção aqui derrubaria o app.
+        repository.publishQuietly();
+
+        assertEquals("só a publicação de escolher o @usuario", 1, backend.publishCount);
+    }
 }

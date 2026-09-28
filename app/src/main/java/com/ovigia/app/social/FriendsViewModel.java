@@ -1,6 +1,9 @@
 package com.ovigia.app.social;
 
+import android.util.Log;
+
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
@@ -20,6 +23,8 @@ import java.util.function.UnaryOperator;
  * social; o estado só muda na main thread.
  */
 public class FriendsViewModel extends ViewModel {
+
+    private static final String TAG = "FriendsViewModel";
 
     private final SocialRepository repository;
     private final Executor socialExecutor;
@@ -177,8 +182,21 @@ public class FriendsViewModel extends ViewModel {
 
     // ---------------------------------------------------------------- apoio
 
-    /** Roda no executor social: descobre em que passo a conta está e, se online, carrega amigos e pedidos. */
+    /**
+     * Roda no executor social: descobre em que passo a conta está e, se online, carrega amigos e pedidos.
+     * Uma exceção solta aqui derrubaria o app inteiro, então qualquer falha inesperada vira o passo de erro
+     * (com "tentar de novo") em vez de crash.
+     */
     private void loadBlocking() {
+        try {
+            load();
+        } catch (RuntimeException e) {
+            Log.e(TAG, "Falha inesperada ao carregar os amigos", e);
+            mainExecutor.execute(() -> showLoadFailure(SocialException.Error.UNKNOWN, state.getValue().me));
+        }
+    }
+
+    private void load() {
         SocialRepository.Session session = repository.session();
         if (session.status != SocialRepository.Status.READY) {
             String suggestion = session.account == null ? "" : Username.suggestFrom(session.account.name);
@@ -192,16 +210,18 @@ public class FriendsViewModel extends ViewModel {
             repository.publishQuietly();
             post(s -> s.withStatus(Status.READY).withMe(session.card).withHub(hub).withWorking(false).withError(null));
         } catch (SocialException e) {
-            mainExecutor.execute(() -> {
-                FriendsUiState s = state.getValue().withMe(session.card);
-                if (s.status == Status.READY) {
-                    // Com a lista já na tela, uma falha ao atualizar não apaga nada.
-                    state.setValue(s.withWorking(false));
-                    messages.setValue(new Event<>(failureMessage(e.error)));
-                } else {
-                    state.setValue(s.withStatus(Status.ERROR).withError(e.error));
-                }
-            });
+            mainExecutor.execute(() -> showLoadFailure(e.error, session.card));
+        }
+    }
+
+    /** Na main thread: com a lista já na tela, uma falha ao atualizar não apaga nada; senão vira o passo de erro. */
+    private void showLoadFailure(SocialException.Error error, @Nullable UserCard me) {
+        FriendsUiState s = state.getValue().withMe(me);
+        if (s.status == Status.READY) {
+            state.setValue(s.withWorking(false));
+            messages.setValue(new Event<>(failureMessage(error)));
+        } else {
+            state.setValue(s.withStatus(Status.ERROR).withError(error));
         }
     }
 

@@ -1,5 +1,7 @@
 package com.ovigia.app.social;
 
+import android.util.Log;
+
 import androidx.annotation.Nullable;
 
 import com.ovigia.app.auth.AccountStore;
@@ -32,6 +34,8 @@ import java.util.function.Supplier;
  * Operações bloqueantes (disco e rede): chamar no executor social.
  */
 public final class SocialRepository {
+
+    private static final String TAG = "SocialRepository";
 
     /** Lado maior da foto publicada no cartão. */
     static final int AVATAR_SHARE_PX = 128;
@@ -280,7 +284,12 @@ public final class SocialRepository {
         if (!backend.isConfigured() || !publishQueued.compareAndSet(false, true)) return;
         executor.execute(() -> {
             publishQueued.set(false);
-            publishIgnoringErrors(session());
+            try {
+                publishIgnoringErrors(session());
+            } catch (RuntimeException e) {
+                // Roda solto numa thread de fundo: se nem a sessão der para ler, o app segue sem publicar.
+                Log.w(TAG, "Não foi possível publicar o perfil", e);
+            }
         });
     }
 

@@ -5,6 +5,9 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.ovigia.app.util.AtomicFiles;
 
 import java.io.File;
@@ -63,6 +66,14 @@ public final class LearningStore {
 
     /** Máximo de partidas guardadas no histórico bruto (as mais antigas saem primeiro). */
     private static final int MAX_GAME_LOG_ENTRIES = 500;
+
+    /**
+     * Nomes que o R8 deu aos campos de {@link PerAccountState} nos releases 1.1.0 a 1.2.2
+     * (na ordem em que são declarados) e os nomes de verdade, na mesma ordem.
+     */
+    private static final String[] OBFUSCATED_KEYS = {"a", "b", "c", "d", "e", "f"};
+    private static final String[] REAL_KEYS =
+            {"picksById", "beliefsById", "gameLog", "gamesPlayed", "engineWins", "baseDistinctCharacters"};
 
     private static final Stats EMPTY_STATS = new Stats(0, 0, 0);
     private static final PlayerHistory EMPTY_HISTORY = new PlayerHistory(
@@ -284,7 +295,9 @@ public final class LearningStore {
         File file = fileSupplier.get();
         if (!file.exists()) return new State();
         try {
-            State loaded = gson.fromJson(AtomicFiles.readUtf8(file), State.class);
+            JsonElement json = JsonParser.parseString(AtomicFiles.readUtf8(file));
+            restoreObfuscatedKeys(json);
+            State loaded = gson.fromJson(json, State.class);
             if (loaded == null || loaded.byAccount == null) return new State();
             loaded.byAccount.values().removeIf(v -> v == null);
             for (PerAccountState perAccount : loaded.byAccount.values()) {
@@ -294,6 +307,28 @@ public final class LearningStore {
         } catch (IOException | RuntimeException e) {
             Log.w(TAG, "Falha ao ler estado de aprendizado; começando do zero", e);
             return new State();
+        }
+    }
+
+    /**
+     * Os releases 1.1.0 a 1.2.2 gravaram o bloco de cada conta com os nomes de campo
+     * ofuscados ({@code a} a {@code f}): faltava a regra de keep de {@link PerAccountState}.
+     * Devolve os nomes de verdade antes de ler, para quem já jogou nessas versões não
+     * perder partidas, favoritos e aprendizado. Um arquivo gravado com os nomes certos
+     * não tem essas chaves e passa intacto.
+     */
+    private static void restoreObfuscatedKeys(JsonElement root) {
+        if (root == null || !root.isJsonObject()) return;
+        JsonElement byAccount = root.getAsJsonObject().get("byAccount");
+        if (byAccount == null || !byAccount.isJsonObject()) return;
+        for (Map.Entry<String, JsonElement> account : byAccount.getAsJsonObject().entrySet()) {
+            if (!account.getValue().isJsonObject()) continue;
+            JsonObject block = account.getValue().getAsJsonObject();
+            for (int i = 0; i < OBFUSCATED_KEYS.length; i++) {
+                if (block.has(OBFUSCATED_KEYS[i]) && !block.has(REAL_KEYS[i])) {
+                    block.add(REAL_KEYS[i], block.remove(OBFUSCATED_KEYS[i]));
+                }
+            }
         }
     }
 

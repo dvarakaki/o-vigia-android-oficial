@@ -8,6 +8,10 @@
 -keep class com.ovigia.app.data.roster.RosterCatalog$Document { <fields>; <init>(); }
 -keep class com.ovigia.app.data.roster.RosterCatalog$Entry { <fields>; <init>(); }
 -keep class com.ovigia.app.learning.LearningStore$State { <fields>; <init>(); }
+# Sem esta, o R8 renomeia os campos e troca Map/List por HashMap/ArrayList, o que apaga a
+# assinatura genérica: ao reabrir o app o Gson devolve Map<String, Double> no lugar de
+# Map<Integer, Integer> e o perfil estoura com ClassCastException (KeepRulesTest guarda isto).
+-keep class com.ovigia.app.learning.LearningStore$PerAccountState { <fields>; <init>(); }
 -keep class com.ovigia.app.learning.LearningStore$GameLogEntry { <fields>; <init>(); }
 -keep class com.ovigia.app.learning.LearningStore$AnswerRecord { <fields>; <init>(); }
 -keepclassmembers enum com.ovigia.app.learning.LearningStore$Outcome { *; }
