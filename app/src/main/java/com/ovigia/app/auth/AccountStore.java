@@ -2,54 +2,44 @@ package com.ovigia.app.auth;
 
 import android.util.Log;
 
-import com.google.gson.Gson;
-import com.ovigia.app.util.AtomicFiles;
+import androidx.annotation.Nullable;
 
-import java.io.File;
-import java.io.IOException;
-import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.Base64;
+import com.ovigia.app.cloud.CloudException;
+import com.ovigia.app.cloud.PlayerBackend;
+import com.ovigia.app.legacy.LegacyData;
+import com.ovigia.app.legacy.LegacyMigration;
+
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
-import java.util.function.Supplier;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
-
 /**
- * Contas de jogador e sessão, guardadas só neste aparelho num arquivo JSON:
- * dados de login, perfil (nome, bio, foto e banner) e a conta logada.
+ * A conta do jogador — que é a conta online (Firebase Auth), a mesma em
+ * qualquer aparelho e em qualquer versão do app. Nada da conta fica em arquivo:
+ * nome, bio, foto, banner e @usuario vêm do {@link PlayerBackend}.
  *
- * Senhas nunca são gravadas: cada conta guarda um salt aleatório e o hash
- * PBKDF2-HMAC-SHA256 da senha. A comparação é feita em tempo constante.
+ * Criar a conta e entrar precisam de internet (é o servidor quem confere a
+ * senha). Depois disso a sessão fica aberta e o jogo segue sem rede, com a
+ * cópia que o Firebase guarda no aparelho.
  *
- * Todas as operações são bloqueantes (disco + derivação de chave, que é lenta
- * de propósito): chamar fora da main thread. Thread-safe.
+ * Na primeira vez que uma conta aparece nesta versão, a {@link LegacyMigration}
+ * traz para ela o que as versões antigas guardavam fora — inclusive contas que
+ * só existiam neste aparelho, que ganham a conta online ao entrar com a senha de
+ * sempre.
+ *
+ * Todas as operações são bloqueantes (rede): chamar fora da main thread, exceto
+ * {@link #currentAccountId()}. Thread-safe.
  */
 public final class AccountStore {
 
     private static final String TAG = "AccountStore";
 
-    /** Iterações padrão do PBKDF2: lento o bastante para atrapalhar força bruta, rápido para o jogador. */
-    public static final int DEFAULT_ITERATIONS = 120_000;
-    /**
-     * Mínimo das senhas antigas, de antes da {@link PasswordRules}: só vale ao
-     * recriar neste aparelho uma conta que já existia no servidor, cuja senha
-     * foi aceita com a regra da época.
-     */
-    static final int LEGACY_MIN_PASSWORD_LENGTH = 6;
     public static final int MAX_NAME_LENGTH = 40;
     public static final int MAX_BIO_LENGTH = 120;
-    private static final int SALT_BYTES = 16;
-    private static final int HASH_BITS = 256;
     private static final Pattern EMAIL = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
 
-    /** Por que um cadastro ou login falhou. A UI traduz cada caso numa mensagem. */
+    /** Por que uma operação na conta falhou. A UI traduz cada caso numa mensagem. */
     public enum Error {
         NAME_REQUIRED,
         NAME_TOO_LONG,
@@ -62,239 +52,259 @@ public final class AccountStore {
         /** Operação na conta logada: a senha atual informada não confere. */
         WRONG_PASSWORD,
         NOT_SIGNED_IN,
-        /** Excluir a conta: a conta online (amigos) não pôde ser apagada por falta de conexão. */
-        ONLINE_UNAVAILABLE
+        /** Sem internet (criar conta, entrar, trocar senha ou e-mail e excluir precisam dela). */
+        OFFLINE,
+        /** Esta versão do app não tem servidor de contas configurado. */
+        UNAVAILABLE,
+        /** Tentativas demais em pouco tempo. */
+        TOO_MANY_ATTEMPTS,
+        FAILED
     }
 
     /** Imagens do perfil. */
     public enum ImageKind { AVATAR, BANNER }
 
-    private final Supplier<File> fileSupplier;
-    private final int iterations;
-    private final SecureRandom random = new SecureRandom();
-    private final Gson gson = new Gson();
-    private State state;
+    private final PlayerBackend backend;
+    private final LegacyMigration migration;
 
-    public AccountStore(Supplier<File> fileSupplier, int iterations) {
-        this.fileSupplier = fileSupplier;
-        this.iterations = iterations;
+    /** Quem guarda dados lidos da conta e precisa esquecê-los quando a sessão muda. */
+    private final List<Runnable> sessionListeners = new CopyOnWriteArrayList<>();
+
+    /** Dados da conta logada, lidos uma vez por sessão (e atualizados a cada alteração). */
+    @Nullable private String cachedUid;
+    @Nullable private PlayerBackend.Account cached;
+
+    public AccountStore(PlayerBackend backend, LegacyMigration migration) {
+        this.backend = backend;
+        this.migration = migration;
     }
 
-    /** Carrega do disco na primeira chamada. */
-    public synchronized void ensureLoaded() {
-        if (state == null) state = load();
+    /** Só a conta online, sem nada das versões antigas. */
+    public AccountStore(PlayerBackend backend) {
+        this(backend, LegacyMigration.none(backend));
     }
 
-    /** Conta com sessão aberta, ou {@code null} se ninguém está logado. */
+    /** O mesmo formato que o cadastro aceita. A mesma regra acende a verificação ao vivo no campo. */
+    public static boolean isValidEmail(String email) {
+        return EMAIL.matcher(normalizeEmail(email)).matches();
+    }
+
+    /** O e-mail como o login usa: sem espaços nas pontas e em minúsculas. */
+    public static String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /** Avisado (na thread de quem entrou ou saiu) quando a sessão muda: entrar, sair ou excluir a conta. */
+    public void addSessionListener(Runnable listener) {
+        sessionListeners.add(listener);
+    }
+
+    /** Se esta versão tem servidor de contas. */
+    public boolean isAvailable() {
+        return backend.isConfigured();
+    }
+
+    /** Id da conta com sessão aberta, ou {@code null}. Rápido (sem rede): pode ser chamado na main thread. */
+    @Nullable
+    public String currentAccountId() {
+        PlayerBackend.Session session = backend.currentSession();
+        return session == null ? null : session.uid;
+    }
+
+    /**
+     * Conta com sessão aberta, ou {@code null} se ninguém entrou. Sem rede e sem
+     * cópia no aparelho, devolve a conta só com o que a sessão sabe (e-mail).
+     */
+    @Nullable
     public synchronized Account currentAccount() {
-        ensureLoaded();
-        StoredAccount stored = findById(state.currentAccountId);
-        return stored != null ? stored.toAccount() : null;
+        PlayerBackend.Session session = backend.currentSession();
+        if (session == null) return null;
+        PlayerBackend.Account data = load(session, null);
+        return data == null ? offlineAccount(session) : toAccount(session, data);
     }
 
     /** Cria a conta e já abre a sessão nela. */
     public synchronized Result signUp(String name, String email, String password) {
-        ensureLoaded();
         String cleanName = name == null ? "" : name.trim();
         String cleanEmail = normalizeEmail(email);
         Error nameError = validateName(cleanName);
         if (nameError != null) return Result.failure(nameError);
         if (!EMAIL.matcher(cleanEmail).matches()) return Result.failure(Error.INVALID_EMAIL);
         if (!PasswordRules.isStrong(password)) return Result.failure(Error.WEAK_PASSWORD);
-        if (findByEmail(cleanEmail) != null) return Result.failure(Error.EMAIL_IN_USE);
-
-        StoredAccount stored = new StoredAccount();
-        stored.id = UUID.randomUUID().toString();
-        stored.name = cleanName;
-        stored.email = cleanEmail;
-        setPassword(stored, password);
-        stored.createdAt = System.currentTimeMillis();
-
-        state.accounts.add(stored);
-        state.currentAccountId = stored.id;
-        persist();
-        return Result.success(stored.toAccount());
-    }
-
-    /** Abre a sessão se e-mail e senha conferem. */
-    public synchronized Result signIn(String email, String password) {
-        ensureLoaded();
-        String cleanEmail = normalizeEmail(email);
-        if (!EMAIL.matcher(cleanEmail).matches()) return Result.failure(Error.INVALID_EMAIL);
-        StoredAccount stored = findByEmail(cleanEmail);
-        // Mesma resposta para e-mail desconhecido e senha errada: não revela quem tem conta.
-        if (stored == null || !passwordMatches(stored, password)) return Result.failure(Error.WRONG_CREDENTIALS);
-
-        state.currentAccountId = stored.id;
-        persist();
-        return Result.success(stored.toAccount());
+        if (!backend.isConfigured()) return Result.failure(Error.UNAVAILABLE);
+        try {
+            PlayerBackend.Session session = backend.signUp(cleanEmail, password);
+            return opened(session, cleanName);
+        } catch (CloudException e) {
+            return Result.failure(errorOf(e));
+        }
     }
 
     /**
-     * Recria neste aparelho a conta de quem já tinha cadastro no servidor e abre
-     * a sessão nela: mesmo e-mail e senha, com o perfil e a ligação online que
-     * vieram de volta. Quem chama repõe foto, banner, coleção e números.
-     *
-     * Nome e bio vêm do servidor, então são ajustados ao limite em vez de
-     * recusar a conta; o nome vazio cai para a parte do e-mail antes do @.
+     * Abre a sessão se e-mail e senha conferem. Uma conta que só existia neste
+     * aparelho (versões antigas) ganha a conta online com a mesma senha.
      */
-    public synchronized Result restore(String name, String email, String password, String bio,
-                                       String cloudUid, String cloudEmail, String username) {
-        ensureLoaded();
+    public synchronized Result signIn(String email, String password) {
         String cleanEmail = normalizeEmail(email);
         if (!EMAIL.matcher(cleanEmail).matches()) return Result.failure(Error.INVALID_EMAIL);
-        // Senha que o servidor já aceitou: pode ser de antes da regra atual.
-        if (password == null || password.length() < LEGACY_MIN_PASSWORD_LENGTH) {
-            return Result.failure(Error.WEAK_PASSWORD);
+        if (!backend.isConfigured()) return Result.failure(Error.UNAVAILABLE);
+        PlayerBackend.Session session;
+        try {
+            session = backend.signIn(cleanEmail, password);
+        } catch (CloudException e) {
+            if (e.reason != CloudException.Reason.WRONG_CREDENTIALS) return Result.failure(errorOf(e));
+            LegacyData.Account local = migration.findLocal(cleanEmail, password);
+            if (local == null) return Result.failure(Error.WRONG_CREDENTIALS);
+            try {
+                session = backend.signUp(cleanEmail, password);
+            } catch (CloudException created) {
+                // Já existe conta online com esse e-mail, com outra senha: vale a de lá.
+                return Result.failure(created.reason == CloudException.Reason.EMAIL_IN_USE
+                        ? Error.WRONG_CREDENTIALS : errorOf(created));
+            }
         }
-        if (findByEmail(cleanEmail) != null) return Result.failure(Error.EMAIL_IN_USE);
-
-        StoredAccount stored = new StoredAccount();
-        stored.id = UUID.randomUUID().toString();
-        stored.name = clip(name, MAX_NAME_LENGTH, cleanEmail.substring(0, cleanEmail.indexOf('@')));
-        stored.email = cleanEmail;
-        stored.bio = clip(bio, MAX_BIO_LENGTH, null);
-        setPassword(stored, password);
-        stored.createdAt = System.currentTimeMillis();
-        stored.cloudUid = cloudUid;
-        stored.cloudEmail = cloudEmail != null ? cloudEmail : cleanEmail;
-        stored.username = username;
-
-        state.accounts.add(stored);
-        state.currentAccountId = stored.id;
-        persist();
-        return Result.success(stored.toAccount());
-    }
-
-    /** Texto aparado no limite, ou {@code fallback} se ele ficar vazio. */
-    private static String clip(String text, int maxLength, String fallback) {
-        String clean = text == null ? "" : text.trim();
-        if (clean.isEmpty()) return fallback;
-        return clean.length() <= maxLength ? clean : clean.substring(0, maxLength).trim();
+        return opened(session, null);
     }
 
     public synchronized void signOut() {
-        ensureLoaded();
-        if (state.currentAccountId == null) return;
-        state.currentAccountId = null;
-        persist();
+        backend.signOut();
+        sessionChanged();
     }
 
-    /**
-     * Altera nome, bio e e-mail da conta logada de uma vez: ou tudo é válido e
-     * gravado, ou nada muda. Trocar o e-mail exige a senha atual.
-     */
-    public synchronized Result updateProfile(String name, String bio, String email, String currentPassword) {
-        ensureLoaded();
-        StoredAccount stored = findById(state.currentAccountId);
-        if (stored == null) return Result.failure(Error.NOT_SIGNED_IN);
-
+    /** Altera nome e bio da conta logada: ou os dois são válidos e gravados, ou nada muda. */
+    public synchronized Result updateProfile(String name, String bio) {
+        PlayerBackend.Session session = backend.currentSession();
+        if (session == null) return Result.failure(Error.NOT_SIGNED_IN);
         String cleanName = name == null ? "" : name.trim();
         String cleanBio = bio == null ? "" : bio.trim();
-        String cleanEmail = normalizeEmail(email);
         Error nameError = validateName(cleanName);
         if (nameError != null) return Result.failure(nameError);
         if (cleanBio.length() > MAX_BIO_LENGTH) return Result.failure(Error.BIO_TOO_LONG);
-        if (!EMAIL.matcher(cleanEmail).matches()) return Result.failure(Error.INVALID_EMAIL);
-        if (!cleanEmail.equals(stored.email)) {
-            if (findByEmail(cleanEmail) != null) return Result.failure(Error.EMAIL_IN_USE);
-            if (!passwordMatches(stored, currentPassword)) return Result.failure(Error.WRONG_PASSWORD);
-        }
+        PlayerBackend.Account data = load(session, null);
+        if (data == null) return Result.failure(Error.OFFLINE);
+        return save(session, data.withName(cleanName, cleanBio.isEmpty() ? null : cleanBio));
+    }
 
-        stored.name = cleanName;
-        stored.bio = cleanBio.isEmpty() ? null : cleanBio;
-        stored.email = cleanEmail;
-        persist();
-        return Result.success(stored.toAccount());
+    /**
+     * Pede a troca do e-mail: o servidor manda um link para o e-mail novo, e ele
+     * só vale depois que o jogador clicar. Confere a senha atual.
+     */
+    public synchronized Result requestEmailChange(String newEmail, String currentPassword) {
+        PlayerBackend.Session session = backend.currentSession();
+        if (session == null) return Result.failure(Error.NOT_SIGNED_IN);
+        String cleanEmail = normalizeEmail(newEmail);
+        if (!EMAIL.matcher(cleanEmail).matches()) return Result.failure(Error.INVALID_EMAIL);
+        if (currentPassword == null || currentPassword.isEmpty()) return Result.failure(Error.WRONG_PASSWORD);
+        try {
+            backend.requestEmailChange(currentPassword, cleanEmail);
+        } catch (CloudException e) {
+            return Result.failure(errorOf(e));
+        }
+        return Result.success(currentAccount());
     }
 
     /** Troca a senha da conta logada, conferindo a atual. */
     public synchronized Result changePassword(String currentPassword, String newPassword) {
-        ensureLoaded();
-        StoredAccount stored = findById(state.currentAccountId);
-        if (stored == null) return Result.failure(Error.NOT_SIGNED_IN);
-        if (!passwordMatches(stored, currentPassword)) return Result.failure(Error.WRONG_PASSWORD);
+        if (backend.currentSession() == null) return Result.failure(Error.NOT_SIGNED_IN);
         if (!PasswordRules.isStrong(newPassword)) return Result.failure(Error.WEAK_PASSWORD);
-
-        setPassword(stored, newPassword);
-        persist();
-        return Result.success(stored.toAccount());
-    }
-
-    /**
-     * Define (ou remove, com {@code null}) a foto ou o banner da conta logada.
-     * {@code fileName} é relativo à pasta de imagens do perfil; apagar o arquivo
-     * antigo fica com quem chama.
-     */
-    public synchronized Result setImage(ImageKind kind, String fileName) {
-        ensureLoaded();
-        StoredAccount stored = findById(state.currentAccountId);
-        if (stored == null) return Result.failure(Error.NOT_SIGNED_IN);
-        if (kind == ImageKind.AVATAR) {
-            stored.avatarFile = fileName;
-        } else {
-            stored.bannerFile = fileName;
+        if (currentPassword == null || currentPassword.isEmpty()) return Result.failure(Error.WRONG_PASSWORD);
+        try {
+            backend.changePassword(currentPassword, newPassword);
+        } catch (CloudException e) {
+            return Result.failure(errorOf(e));
         }
-        persist();
-        return Result.success(stored.toAccount());
+        return Result.success(currentAccount());
+    }
+
+    /** Define (ou remove, com {@code null}) a foto ou o banner da conta logada, já em JPEG Base64. */
+    public synchronized Result setImage(ImageKind kind, @Nullable String image) {
+        PlayerBackend.Session session = backend.currentSession();
+        if (session == null) return Result.failure(Error.NOT_SIGNED_IN);
+        PlayerBackend.Account data = load(session, null);
+        if (data == null) return Result.failure(Error.OFFLINE);
+        return save(session, kind == ImageKind.AVATAR ? data.withAvatar(image) : data.withBanner(image));
+    }
+
+    /** Guarda o @usuario reservado para os amigos (ou {@code null} para esquecê-lo). */
+    public synchronized Result setUsername(String accountId, @Nullable String username) {
+        PlayerBackend.Session session = backend.currentSession();
+        if (session == null || !session.uid.equals(accountId)) return Result.failure(Error.NOT_SIGNED_IN);
+        PlayerBackend.Account data = load(session, null);
+        if (data == null) return Result.failure(Error.OFFLINE);
+        return save(session, data.withUsername(username));
     }
 
     /**
-     * Se este aparelho já tem uma conta com esse e-mail. Não diz nada sobre a
-     * senha: serve para saber se vale a pena procurar a conta no servidor.
-     */
-    synchronized boolean knowsEmail(String email) {
-        ensureLoaded();
-        return findByEmail(normalizeEmail(email)) != null;
-    }
-
-    /** Se {@code password} é a senha da conta logada (sem alterar nada). */
-    public synchronized boolean verifyPassword(String password) {
-        ensureLoaded();
-        StoredAccount stored = findById(state.currentAccountId);
-        return stored != null && passwordMatches(stored, password);
-    }
-
-    /**
-     * Liga a conta local à conta online ({@code cloudUid}) criada com
-     * {@code cloudEmail}. O e-mail online fica guardado à parte: trocar o e-mail
-     * local depois não desfaz a ligação.
-     */
-    public synchronized Result linkCloud(String accountId, String cloudUid, String cloudEmail) {
-        ensureLoaded();
-        StoredAccount stored = findById(accountId);
-        if (stored == null) return Result.failure(Error.NOT_SIGNED_IN);
-        if (!cloudUid.equals(stored.cloudUid)) stored.username = null;
-        stored.cloudUid = cloudUid;
-        stored.cloudEmail = cloudEmail;
-        persist();
-        return Result.success(stored.toAccount());
-    }
-
-    /** Guarda o @usuario reservado para a conta online (ou {@code null} para esquecê-lo). */
-    public synchronized Result setUsername(String accountId, String username) {
-        ensureLoaded();
-        StoredAccount stored = findById(accountId);
-        if (stored == null) return Result.failure(Error.NOT_SIGNED_IN);
-        stored.username = username;
-        persist();
-        return Result.success(stored.toAccount());
-    }
-
-    /**
-     * Exclui a conta logada, conferindo a senha, e encerra a sessão. O resultado
-     * traz a conta excluída para quem chama apagar coleção e imagens.
+     * Exclui a conta logada, conferindo a senha: todos os dados dela, o perfil
+     * que os amigos viam, amizades, pedidos, trocas e o login. Precisa de internet.
      */
     public synchronized Result deleteCurrentAccount(String currentPassword) {
-        ensureLoaded();
-        StoredAccount stored = findById(state.currentAccountId);
-        if (stored == null) return Result.failure(Error.NOT_SIGNED_IN);
-        if (!passwordMatches(stored, currentPassword)) return Result.failure(Error.WRONG_PASSWORD);
+        PlayerBackend.Session session = backend.currentSession();
+        if (session == null) return Result.failure(Error.NOT_SIGNED_IN);
+        Account before = currentAccount();
+        if (currentPassword == null || currentPassword.isEmpty()) return Result.failure(Error.WRONG_PASSWORD);
+        try {
+            backend.deleteAccount(currentPassword);
+        } catch (CloudException e) {
+            return Result.failure(errorOf(e));
+        }
+        sessionChanged();
+        return Result.success(before);
+    }
 
-        state.accounts.remove(stored);
-        state.currentAccountId = null;
-        persist();
-        return Result.success(stored.toAccount());
+    // ---------------------------------------------------------------- apoio
+
+    /** Sessão recém-aberta: traz o que as versões antigas guardavam e lê a conta de novo. */
+    private Result opened(PlayerBackend.Session session, @Nullable String signUpName) {
+        sessionChanged();
+        PlayerBackend.Account data = load(session, signUpName);
+        return Result.success(data == null ? offlineAccount(session) : toAccount(session, data));
+    }
+
+    private void sessionChanged() {
+        cachedUid = null;
+        cached = null;
+        for (Runnable listener : sessionListeners) listener.run();
+    }
+
+    @Nullable
+    private PlayerBackend.Account load(PlayerBackend.Session session, @Nullable String signUpName) {
+        if (session.uid.equals(cachedUid) && cached != null) return cached;
+        try {
+            PlayerBackend.Account data = migration.ensure(session.uid, session.email, signUpName);
+            cachedUid = session.uid;
+            cached = data;
+            return data;
+        } catch (CloudException e) {
+            // Sem rede e sem cópia no aparelho: a próxima leitura tenta de novo.
+            Log.i(TAG, "Conta ainda sem dados neste aparelho (" + e.reason + ")");
+            return null;
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Falha inesperada ao ler a conta", e);
+            return null;
+        }
+    }
+
+    private Result save(PlayerBackend.Session session, PlayerBackend.Account data) {
+        backend.saveAccount(session.uid, data);
+        cachedUid = session.uid;
+        cached = data;
+        return Result.success(toAccount(session, data));
+    }
+
+    private static Account toAccount(PlayerBackend.Session session, PlayerBackend.Account data) {
+        String name = data.name.trim().isEmpty() ? emailPrefix(session.email) : data.name;
+        return new Account(session.uid, name, session.email, data.bio, data.avatar, data.banner, data.username);
+    }
+
+    private static Account offlineAccount(PlayerBackend.Session session) {
+        return new Account(session.uid, emailPrefix(session.email), session.email, null, null, null, null);
+    }
+
+    private static String emailPrefix(@Nullable String email) {
+        if (email == null) return "";
+        int at = email.indexOf('@');
+        return at > 0 ? email.substring(0, at) : email;
     }
 
     private static Error validateName(String cleanName) {
@@ -303,111 +313,52 @@ public final class AccountStore {
         return null;
     }
 
-    private void setPassword(StoredAccount stored, String password) {
-        byte[] salt = new byte[SALT_BYTES];
-        random.nextBytes(salt);
-        stored.salt = Base64.getEncoder().encodeToString(salt);
-        stored.iterations = iterations;
-        stored.hash = Base64.getEncoder().encodeToString(hash(password, salt, iterations));
-    }
-
-    private static boolean passwordMatches(StoredAccount stored, String password) {
-        if (password == null) return false;
-        byte[] expected = Base64.getDecoder().decode(stored.hash);
-        byte[] actual = hash(password, Base64.getDecoder().decode(stored.salt), stored.iterations);
-        return MessageDigest.isEqual(expected, actual);
-    }
-
-    private static String normalizeEmail(String email) {
-        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private StoredAccount findByEmail(String email) {
-        for (StoredAccount a : state.accounts) {
-            if (a.email.equals(email)) return a;
-        }
-        return null;
-    }
-
-    private StoredAccount findById(String id) {
-        if (id == null) return null;
-        for (StoredAccount a : state.accounts) {
-            if (a.id.equals(id)) return a;
-        }
-        return null;
-    }
-
-    private static byte[] hash(String password, byte[] salt, int iterations) {
-        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, iterations, HASH_BITS);
-        try {
-            return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded();
-        } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("PBKDF2 indisponível", e);
-        } finally {
-            spec.clearPassword();
+    private static Error errorOf(CloudException e) {
+        switch (e.reason) {
+            case OFFLINE: return Error.OFFLINE;
+            case WRONG_CREDENTIALS: return Error.WRONG_CREDENTIALS;
+            case WRONG_PASSWORD: return Error.WRONG_PASSWORD;
+            case EMAIL_IN_USE: return Error.EMAIL_IN_USE;
+            case INVALID_EMAIL: return Error.INVALID_EMAIL;
+            case WEAK_PASSWORD: return Error.WEAK_PASSWORD;
+            case NOT_SIGNED_IN: return Error.NOT_SIGNED_IN;
+            case NOT_CONFIGURED: return Error.UNAVAILABLE;
+            case TOO_MANY_ATTEMPTS: return Error.TOO_MANY_ATTEMPTS;
+            case FAILED:
+            default: return Error.FAILED;
         }
     }
 
-    private State load() {
-        File file = fileSupplier.get();
-        if (!file.exists()) return new State();
-        try {
-            State loaded = gson.fromJson(AtomicFiles.readUtf8(file), State.class);
-            if (loaded == null) return new State();
-            if (loaded.accounts == null) loaded.accounts = new ArrayList<>();
-            loaded.accounts.removeIf(a -> a == null || a.id == null || a.email == null
-                    || a.salt == null || a.hash == null || a.iterations <= 0);
-            return loaded;
-        } catch (IOException | RuntimeException e) {
-            Log.w(TAG, "Falha ao ler contas; começando do zero", e);
-            return new State();
-        }
-    }
-
-    /** Síncrono: login e logout só valem depois de gravados. */
-    private void persist() {
-        try {
-            AtomicFiles.writeUtf8(fileSupplier.get(), gson.toJson(state, State.class));
-        } catch (IOException e) {
-            Log.w(TAG, "Falha ao salvar contas", e);
-        }
-    }
-
-    /** Dados públicos de uma conta. Arquivos de imagem são relativos à pasta de imagens do perfil. */
+    /** Dados da conta. Imagens em JPEG Base64; {@code null} usa o padrão. */
     public static final class Account {
         public final String id;
         public final String name;
         public final String email;
         /** {@code null} quando não há bio. */
-        public final String bio;
-        public final String avatarFile;
-        public final String bannerFile;
-        /** Conta online ligada a esta (amigos), ou {@code null} se nunca conectou. */
-        public final String cloudUid;
-        /** E-mail usado para entrar na conta online. */
-        public final String cloudEmail;
-        /** @usuario reservado online, ou {@code null} se ainda não escolheu. */
-        public final String username;
+        @Nullable public final String bio;
+        @Nullable public final String avatar;
+        @Nullable public final String banner;
+        /** @usuario reservado para os amigos, ou {@code null} se ainda não escolheu. */
+        @Nullable public final String username;
 
-        Account(String id, String name, String email, String bio, String avatarFile, String bannerFile,
-                String cloudUid, String cloudEmail, String username) {
+        public Account(String id, String name, String email, @Nullable String bio, @Nullable String avatar,
+                       @Nullable String banner, @Nullable String username) {
             this.id = id;
             this.name = name;
             this.email = email;
             this.bio = bio;
-            this.avatarFile = avatarFile;
-            this.bannerFile = bannerFile;
-            this.cloudUid = cloudUid;
-            this.cloudEmail = cloudEmail;
+            this.avatar = avatar;
+            this.banner = banner;
             this.username = username;
         }
 
-        public String imageFile(ImageKind kind) {
-            return kind == ImageKind.AVATAR ? avatarFile : bannerFile;
+        @Nullable
+        public String image(ImageKind kind) {
+            return kind == ImageKind.AVATAR ? avatar : banner;
         }
     }
 
-    /** Resultado de cadastro ou login: {@link #account} ou {@link #error}. */
+    /** Resultado de uma operação na conta: {@link #account} ou {@link #error}. */
     public static final class Result {
         public final Account account;
         public final Error error;
@@ -425,35 +376,13 @@ public final class AccountStore {
             return new Result(null, error);
         }
 
+        /** Falha que aconteceu fora da conta (ex.: uma exceção inesperada em quem chamou). */
+        public static Result failed(Error error) {
+            return failure(error);
+        }
+
         public boolean isSuccess() {
-            return account != null;
+            return error == null;
         }
-    }
-
-    /** Formato serializado de uma conta. */
-    private static final class StoredAccount {
-        String id;
-        String name;
-        String email;
-        String salt;
-        String hash;
-        int iterations;
-        long createdAt;
-        String bio;
-        String avatarFile;
-        String bannerFile;
-        String cloudUid;
-        String cloudEmail;
-        String username;
-
-        Account toAccount() {
-            return new Account(id, name, email, bio, avatarFile, bannerFile, cloudUid, cloudEmail, username);
-        }
-    }
-
-    /** Formato serializado. */
-    private static final class State {
-        List<StoredAccount> accounts = new ArrayList<>();
-        String currentAccountId;
     }
 }

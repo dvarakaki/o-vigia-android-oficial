@@ -2,7 +2,8 @@ package com.ovigia.app.social;
 
 import androidx.annotation.Nullable;
 
-import java.text.Normalizer;
+import com.ovigia.app.util.SearchText;
+
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -52,8 +53,7 @@ public final class Username {
     /** Sugestão a partir do nome da conta ("Davi Souza" → "davisouza"), ou vazio se não der um nome válido. */
     public static String suggestFrom(@Nullable String name) {
         if (name == null) return "";
-        String plain = Normalizer.normalize(name, Normalizer.Form.NFD).replaceAll("\\p{M}+", "")
-                .toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_]", "");
+        String plain = SearchText.fold(name).replaceAll("[^a-z0-9_]", "");
         if (plain.length() > MAX_LENGTH) plain = plain.substring(0, MAX_LENGTH);
         return isValid(plain) ? plain : "";
     }

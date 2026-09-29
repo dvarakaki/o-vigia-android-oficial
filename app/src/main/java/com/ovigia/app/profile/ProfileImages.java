@@ -8,36 +8,18 @@ import java.io.File;
 import java.io.IOException;
 
 /**
- * Pasta das imagens do perfil (foto e banner). Abstraída para os ViewModels
- * serem testados na JVM sem decodificar imagens de verdade.
+ * Foto e banner do perfil no formato em que vão para a conta online: JPEG
+ * reduzido e codificado em Base64, pequeno o bastante para caber no documento
+ * (e aparecer igual em qualquer aparelho). Abstraída para os ViewModels serem
+ * testados na JVM sem decodificar imagens de verdade.
  *
  * Operações bloqueantes: chamar fora da main thread.
  */
 public interface ProfileImages {
 
-    /**
-     * Copia a imagem escolhida pelo jogador para a pasta do app, já reduzida ao
-     * tamanho de exibição. Devolve o nome do arquivo criado.
-     */
-    String importImage(Uri source, ImageKind kind, String accountId) throws IOException;
+    /** A imagem escolhida pelo jogador, já reduzida para {@code kind}. */
+    String encode(Uri source, ImageKind kind) throws IOException;
 
-    /**
-     * Grava no aparelho uma imagem que veio da conta online — JPEG em Base64, no
-     * mesmo formato que {@link #encodeForSharing} produz. Devolve o nome do
-     * arquivo criado. Usado ao recuperar uma conta em outro aparelho.
-     */
-    String saveShared(String base64, ImageKind kind, String accountId) throws IOException;
-
-    /** Arquivo de um nome devolvido por {@link #importImage}, ou {@code null} para {@code null}. */
-    File file(String fileName);
-
-    /** Apaga o arquivo, se existir. Ignora {@code null}. */
-    void delete(String fileName);
-
-    /**
-     * Versão reduzida da imagem para publicar online: JPEG com no máximo
-     * {@code maxPx} no lado maior, codificado em Base64. {@code null} se não há
-     * arquivo ou ele não pôde ser lido.
-     */
-    String encodeForSharing(String fileName, int maxPx);
+    /** O mesmo, a partir de um arquivo (as fotos guardadas pelas versões antigas). */
+    String encodeFile(File file, ImageKind kind) throws IOException;
 }

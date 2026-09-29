@@ -17,15 +17,15 @@ public class ImageData {
 
     /** Melhor imagem para exibir o personagem em destaque (chute). */
     public String bestForHero() {
-        return firstNotBlank(superUrl, screenLargeUrl, originalUrl, screenUrl, mediumUrl, smallUrl);
+        return firstNotEmpty(superUrl, screenLargeUrl, originalUrl, screenUrl, mediumUrl, smallUrl);
     }
 
     /** Imagem leve para miniaturas em listas. */
     public String bestForThumbnail() {
-        return firstNotBlank(mediumUrl, screenUrl, smallUrl, superUrl, screenLargeUrl, originalUrl);
+        return firstNotEmpty(mediumUrl, screenUrl, smallUrl, superUrl, screenLargeUrl, originalUrl);
     }
 
-    private static String firstNotBlank(String... candidates) {
+    private static String firstNotEmpty(String... candidates) {
         for (String s : candidates) {
             if (s != null && !s.isEmpty()) return s;
         }

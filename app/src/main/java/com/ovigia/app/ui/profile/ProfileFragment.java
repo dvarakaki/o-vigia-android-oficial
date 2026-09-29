@@ -2,9 +2,9 @@ package com.ovigia.app.ui.profile;
 
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.Gravity;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -22,10 +22,7 @@ import androidx.navigation.NavDestination;
 import androidx.navigation.fragment.NavHostFragment;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.MultiTransformation;
-import com.bumptech.glide.load.resource.bitmap.CenterCrop;
 import com.bumptech.glide.load.resource.bitmap.CircleCrop;
-import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
 import com.ovigia.app.AppContainer;
 import com.ovigia.app.OVigiaApplication;
 import com.ovigia.app.R;
@@ -39,6 +36,8 @@ import com.ovigia.app.profile.ProfileViewModel;
 import com.ovigia.app.ui.ConfirmDialog;
 import com.ovigia.app.ui.FadeNavOptions;
 import com.ovigia.app.ui.Motion;
+import com.ovigia.app.ui.PlayerImages;
+import com.ovigia.app.ui.Portraits;
 import com.ovigia.app.ui.RelativeTime;
 import com.ovigia.app.ui.SystemBarInsets;
 import com.ovigia.app.ui.achievements.AchievementViews;
@@ -60,6 +59,8 @@ public class ProfileFragment extends Fragment {
 
     /** Retratos na prévia do catálogo. */
     private static final int CATALOG_PREVIEW_SIZE = 6;
+    private static final String STATE_ENTERED = "entered";
+    private static final String STATE_ACHIEVEMENTS = "achievements_expanded";
 
     private FragmentProfileBinding binding;
     private ProfileViewModel viewModel;
@@ -67,8 +68,6 @@ public class ProfileFragment extends Fragment {
     private boolean signOutRequested = false;
     /** Heróis desbloqueados: linhas deles abrem a ficha. */
     private Set<Integer> unlockedIds = Collections.emptySet();
-    private static final String STATE_ENTERED = "entered";
-    private static final String STATE_ACHIEVEMENTS = "achievements_expanded";
     /** O jogador abriu a lista completa de conquistas. */
     private boolean achievementsExpanded = false;
     private final Motion motion = new Motion();
@@ -117,7 +116,7 @@ public class ProfileFragment extends Fragment {
         AppContainer container = ((OVigiaApplication) requireActivity().getApplication()).container();
         viewModel = new ViewModelProvider(this, new ProfileViewModel.Factory(
                 container.characterRepository, container.learningStore,
-                container.accountStore, container.collectionStore, container.profileImages,
+                container.accountStore, container.collectionStore,
                 container::rosterCatalog, container.ioExecutor, container.mainExecutor)).get(ProfileViewModel.class);
         binding.btnSignOut.setOnClickListener(v -> {
             if (signOutRequested) return;
@@ -130,7 +129,6 @@ public class ProfileFragment extends Fragment {
                         if (signOutRequested || binding == null) return;
                         signOutRequested = true;
                         viewModel.signOut();
-                        container.socialExecutor.execute(container.socialRepository::onSignedOut);
                     })
                     .show();
         });
@@ -223,8 +221,8 @@ public class ProfileFragment extends Fragment {
         binding.tvAccountEmail.setText(state.accountEmail);
         binding.tvAccountBio.setText(state.accountBio);
         binding.tvAccountBio.setVisibility(state.accountBio != null ? View.VISIBLE : View.GONE);
-        ProfileImageBinder.bindBanner(this, binding.imageBanner, binding.bannerTint, state.bannerFile);
-        ProfileImageBinder.bindAvatar(this, binding.imageAvatar, state.avatarFile);
+        PlayerImages.bindBanner(this, binding.imageBanner, binding.bannerTint, state.banner);
+        PlayerImages.bindAvatar(this, binding.imageAvatar, state.avatar);
     }
 
     /**
@@ -404,7 +402,7 @@ public class ProfileFragment extends Fragment {
                 .placeholder(R.drawable.ic_character_placeholder)
                 .error(R.drawable.ic_character_placeholder)
                 .fallback(R.drawable.ic_character_placeholder)
-                .transform(new MultiTransformation<>(new CenterCrop(), new RoundedCorners(radius)))
+                .transform(Portraits.roundedCrop(radius))
                 .into(row.image);
     }
 

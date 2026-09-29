@@ -73,8 +73,8 @@ public class HeroDetailViewModel extends ViewModel {
         if (started) return;
         started = true;
         ioExecutor.execute(() -> {
-            AccountStore.Account account = accountStore.currentAccount();
-            List<CollectionStore.Entry> unlocked = account == null ? null : collectionStore.list(account.id);
+            String account = accountStore.currentAccountId();
+            List<CollectionStore.Entry> unlocked = account == null ? null : collectionStore.list(account);
             mainExecutor.execute(() -> onAccess(unlocked));
         });
     }

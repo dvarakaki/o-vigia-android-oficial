@@ -2,8 +2,6 @@ package com.ovigia.app.profile;
 
 import com.ovigia.app.auth.AccountStore;
 
-import java.io.File;
-
 /** Estado da tela de edição do perfil. Imutável. */
 public final class EditProfileUiState {
 
@@ -24,23 +22,24 @@ public final class EditProfileUiState {
     public final String name;
     public final String email;
     public final String bio;
-    public final File avatarFile;
-    public final File bannerFile;
+    /** Foto e banner em JPEG Base64; {@code null} usa o padrão. */
+    public final String avatar;
+    public final String banner;
     /** Erro da seção de dados (nome, bio, e-mail); {@code null} se não há. */
     public final AccountStore.Error profileError;
     public final AccountStore.Error passwordError;
     public final AccountStore.Error deleteError;
 
-    EditProfileUiState(Status status, Busy busy, String name, String email, String bio, File avatarFile,
-                       File bannerFile, AccountStore.Error profileError, AccountStore.Error passwordError,
+    EditProfileUiState(Status status, Busy busy, String name, String email, String bio, String avatar,
+                       String banner, AccountStore.Error profileError, AccountStore.Error passwordError,
                        AccountStore.Error deleteError) {
         this.status = status;
         this.busy = busy;
         this.name = name;
         this.email = email;
         this.bio = bio;
-        this.avatarFile = avatarFile;
-        this.bannerFile = bannerFile;
+        this.avatar = avatar;
+        this.banner = banner;
         this.profileError = profileError;
         this.passwordError = passwordError;
         this.deleteError = deleteError;
@@ -57,6 +56,8 @@ public final class EditProfileUiState {
     /** Aviso pontual mostrado depois de uma operação. */
     public enum Message {
         PROFILE_SAVED,
+        /** Nome e bio salvos, e o link para trocar o e-mail foi enviado ao e-mail novo. */
+        EMAIL_CHANGE_SENT,
         PASSWORD_CHANGED,
         IMAGE_UPDATED,
         IMAGE_REMOVED,

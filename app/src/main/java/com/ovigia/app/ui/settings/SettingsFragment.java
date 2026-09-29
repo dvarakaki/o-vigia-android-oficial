@@ -44,7 +44,6 @@ import com.ovigia.app.ui.SystemBarInsets;
 public class SettingsFragment extends Fragment {
 
     private static final String COMIC_VINE_URL = "https://comicvine.gamespot.com/";
-    private static final String STATE_ENTERED = "entered";
 
     private FragmentSettingsBinding binding;
     private SettingsViewModel viewModel;
@@ -109,7 +108,7 @@ public class SettingsFragment extends Fragment {
         binding.rowVersion.setContentDescription(getString(R.string.settings_version) + " " + BuildConfig.VERSION_NAME);
 
         // Entrada em cascata só na primeira abertura (não ao girar nem ao voltar da troca de idioma).
-        if (savedInstanceState == null || !savedInstanceState.getBoolean(STATE_ENTERED, false)) {
+        if (savedInstanceState == null) {
             motion.staggerIn(80, binding.tvSectionLanguage, binding.cardLanguage, binding.tvSectionGame,
                     binding.cardGame, binding.tvSectionData, binding.cardData, binding.tvSectionAbout,
                     binding.cardAbout, binding.tvDisclaimer);
@@ -133,12 +132,6 @@ public class SettingsFragment extends Fragment {
         binding.sliderHapticLevel.setEnabled(active);
         binding.tvHapticLevel.setText(getString(R.string.settings_haptics_level, level, HapticStrength.MAX_LEVEL));
         binding.blockHapticStrength.setAlpha(active ? 1f : 0.5f);
-    }
-
-    @Override
-    public void onSaveInstanceState(@NonNull Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putBoolean(STATE_ENTERED, true);
     }
 
     @Override
@@ -185,7 +178,9 @@ public class SettingsFragment extends Fragment {
                 super.onInitializeAccessibilityNodeInfo(host, info);
                 info.setClassName(Switch.class.getName());
                 info.setCheckable(true);
-                info.setChecked(toggle.isChecked());
+                info.setChecked(toggle.isChecked()
+                        ? AccessibilityNodeInfoCompat.CHECKED_STATE_TRUE
+                        : AccessibilityNodeInfoCompat.CHECKED_STATE_FALSE);
                 info.setEnabled(toggle.isEnabled());
             }
         });

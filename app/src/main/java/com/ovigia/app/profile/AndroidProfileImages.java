@@ -10,78 +10,72 @@ import com.ovigia.app.auth.AccountStore.ImageKind;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.util.Base64;
-import java.util.Locale;
-import java.util.function.Supplier;
 
 /**
  * Implementação real de {@link ProfileImages}: decodifica com {@link ImageDecoder}
- * (que já aplica a rotação EXIF), reduz para no máximo {@link #AVATAR_MAX_PX} /
- * {@link #BANNER_MAX_PX} no lado maior e grava JPEG em {@code files/profile_media}.
- * Assim uma foto de 12 MP da câmera vira algumas centenas de KB.
+ * (que já aplica a rotação EXIF), reduz o lado maior e comprime em JPEG até
+ * caber no limite de cada imagem na conta — a qualidade cai aos poucos e, se
+ * ainda não couber, a imagem encolhe mais um pouco.
  */
 public final class AndroidProfileImages implements ProfileImages {
 
-    static final int AVATAR_MAX_PX = 512;
-    static final int BANNER_MAX_PX = 1600;
-    private static final int JPEG_QUALITY = 88;
-    /** Imagens publicadas online vão dentro dos documentos: mais comprimidas. */
-    private static final int SHARED_JPEG_QUALITY = 72;
+    static final int AVATAR_MAX_PX = 256;
+    static final int BANNER_MAX_PX = 1080;
+    /** Tamanho máximo do texto em Base64 (as regras do Firestore aceitam 60 mil e 400 mil). */
+    static final int AVATAR_MAX_CHARS = 55_000;
+    static final int BANNER_MAX_CHARS = 380_000;
+    private static final int START_QUALITY = 85;
+    private static final int MIN_QUALITY = 45;
+    private static final int QUALITY_STEP = 10;
+    private static final float SHRINK = 0.8f;
 
     private final ContentResolver resolver;
-    private final Supplier<File> directory;
 
-    /** @param directory resolvido só no executor de I/O — obter a pasta de arquivos já é acesso a disco. */
-    public AndroidProfileImages(ContentResolver resolver, Supplier<File> directory) {
+    public AndroidProfileImages(ContentResolver resolver) {
         this.resolver = resolver;
-        this.directory = directory;
     }
 
     @Override
-    public String importImage(Uri source, ImageKind kind, String accountId) throws IOException {
-        int maxPx = kind == ImageKind.AVATAR ? AVATAR_MAX_PX : BANNER_MAX_PX;
-        Bitmap bitmap = decodeScaled(ImageDecoder.createSource(resolver, source), maxPx);
+    public String encode(Uri source, ImageKind kind) throws IOException {
+        return encode(ImageDecoder.createSource(resolver, source), kind);
+    }
 
-        ByteArrayOutputStream jpeg = new ByteArrayOutputStream();
+    @Override
+    public String encodeFile(File file, ImageKind kind) throws IOException {
+        return encode(ImageDecoder.createSource(file), kind);
+    }
+
+    private static String encode(ImageDecoder.Source source, ImageKind kind) throws IOException {
+        boolean avatar = kind == ImageKind.AVATAR;
+        int maxChars = avatar ? AVATAR_MAX_CHARS : BANNER_MAX_CHARS;
+        Bitmap bitmap = decodeScaled(source, avatar ? AVATAR_MAX_PX : BANNER_MAX_PX);
         try {
-            if (!bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, jpeg)) {
-                throw new IOException("Falha ao comprimir imagem");
+            while (true) {
+                for (int quality = START_QUALITY; quality >= MIN_QUALITY; quality -= QUALITY_STEP) {
+                    String encoded = jpegBase64(bitmap, quality);
+                    if (encoded.length() <= maxChars) return encoded;
+                }
+                // Nem com a qualidade mínima coube: encolhe e tenta de novo.
+                int width = Math.round(bitmap.getWidth() * SHRINK);
+                int height = Math.round(bitmap.getHeight() * SHRINK);
+                if (width < 32 || height < 32) throw new IOException("Imagem grande demais");
+                Bitmap smaller = Bitmap.createScaledBitmap(bitmap, width, height, true);
+                bitmap.recycle();
+                bitmap = smaller;
             }
         } finally {
             bitmap.recycle();
         }
-        return write(jpeg.toByteArray(), kind, accountId);
     }
 
-    @Override
-    public String saveShared(String base64, ImageKind kind, String accountId) throws IOException {
-        if (base64 == null) throw new IOException("Imagem vazia");
-        try {
-            // Já vem como JPEG reduzido do servidor: só gravar.
-            return write(Base64.getDecoder().decode(base64), kind, accountId);
-        } catch (IllegalArgumentException e) {
-            throw new IOException("Imagem ilegível", e);
+    private static String jpegBase64(Bitmap bitmap, int quality) throws IOException {
+        ByteArrayOutputStream jpeg = new ByteArrayOutputStream();
+        if (!bitmap.compress(Bitmap.CompressFormat.JPEG, quality, jpeg)) {
+            throw new IOException("Falha ao comprimir imagem");
         }
-    }
-
-    /** Grava os bytes com um nome novo, por arquivo temporário + rename. */
-    private String write(byte[] jpeg, ImageKind kind, String accountId) throws IOException {
-        File dir = directory.get();
-        if (!dir.exists() && !dir.mkdirs()) throw new IOException("Não foi possível criar " + dir);
-        String name = kind.name().toLowerCase(Locale.ROOT) + "_" + accountId + "_"
-                + System.currentTimeMillis() + ".jpg";
-        File target = new File(dir, name);
-        File tmp = new File(dir, name + ".tmp");
-        try (OutputStream out = new FileOutputStream(tmp)) {
-            out.write(jpeg);
-        }
-        Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        return name;
+        return Base64.getEncoder().encodeToString(jpeg.toByteArray());
     }
 
     /** Decodifica reduzindo para no máximo {@code maxPx} no lado maior. */
@@ -100,38 +94,6 @@ public final class AndroidProfileImages implements ProfileImages {
             });
         } catch (RuntimeException e) {
             throw new IOException("Imagem ilegível", e);
-        }
-    }
-
-    @Override
-    public File file(String fileName) {
-        return fileName == null ? null : new File(directory.get(), fileName);
-    }
-
-    @Override
-    public String encodeForSharing(String fileName, int maxPx) {
-        File file = file(fileName);
-        if (file == null || !file.exists()) return null;
-        try {
-            Bitmap bitmap = decodeScaled(ImageDecoder.createSource(file), maxPx);
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            try {
-                if (!bitmap.compress(Bitmap.CompressFormat.JPEG, SHARED_JPEG_QUALITY, out)) return null;
-            } finally {
-                bitmap.recycle();
-            }
-            return Base64.getEncoder().encodeToString(out.toByteArray());
-        } catch (IOException | RuntimeException e) {
-            return null;
-        }
-    }
-
-    @Override
-    public void delete(String fileName) {
-        File file = file(fileName);
-        if (file != null && file.exists()) {
-            //noinspection ResultOfMethodCallIgnored
-            file.delete();
         }
     }
 }

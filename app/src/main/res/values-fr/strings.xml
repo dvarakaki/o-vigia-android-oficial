@@ -51,7 +51,7 @@
     <string name="profile_open_catalog">Ouvrir le catalogue</string>
     <string name="profile_sign_out">Se déconnecter</string>
     <string name="profile_sign_out_confirm_title">Se déconnecter ?</string>
-    <string name="profile_sign_out_confirm_message">Votre collection, vos succès et votre progression restent enregistrés sur cet appareil. Pour revenir, il suffit de vous reconnecter.</string>
+    <string name="profile_sign_out_confirm_message">Votre collection, vos succès et votre progression restent enregistrés dans votre compte. Pour revenir, reconnectez-vous simplement, sur cet appareil ou sur un autre.</string>
     <string name="profile_signed_out_message">Déconnexion effectuée.</string>
 
     <!-- Amis -->
@@ -59,10 +59,6 @@
     <string name="friends_cd_refresh">Actualiser les amis et les demandes</string>
     <string name="friends_not_configured_title">Amis indisponibles</string>
     <string name="friends_not_configured_body">Cette version de l\'app n\'a pas de serveur d\'amis configuré.</string>
-    <string name="friends_connect_title">Jouez avec vos amis</string>
-    <string name="friends_connect_body">Connectez votre compte pour ajouter des amis et voir leur profil, les héros qu\'ils ont débloqués et leurs succès.</string>
-    <string name="friends_hint_password">Mot de passe de votre compte</string>
-    <string name="friends_connect_action">Connecter le compte</string>
     <string name="friends_privacy_note">Vos amis voient votre nom, votre \@pseudo, votre photo, votre bannière, votre bio, vos statistiques, vos héros et vos succès. Votre e-mail n\'apparaît jamais.</string>
     <string name="friends_username_title">Choisissez votre \@pseudo</string>
     <string name="friends_username_body">C\'est avec lui que vos amis vous trouveront.</string>
@@ -75,7 +71,6 @@
     <string name="friends_username_too_long">Le \@pseudo peut avoir au maximum 20 caractères.</string>
     <string name="friends_error_title">Chargement impossible</string>
     <string name="friends_error_offline">Pas de connexion Internet.</string>
-    <string name="friends_error_wrong_password">Mot de passe incorrect.</string>
     <string name="friends_error_generic">Une erreur s\'est produite. Réessayez.</string>
     <string name="friends_me_label">Vous êtes</string>
     <string name="friends_cd_me">Votre \@pseudo est %1$s</string>
@@ -103,7 +98,6 @@
     <string name="friends_message_declined">Demande refusée.</string>
     <string name="friends_message_canceled">Demande annulée.</string>
     <string name="friends_message_username_saved">\@pseudo enregistré.</string>
-    <string name="friends_message_connected">Compte connecté.</string>
 
     <!-- Profil d'un ami -->
     <string name="friend_profile_updated">Mis à jour %1$s</string>
@@ -232,6 +226,11 @@
     <string name="auth_reason_unlock">Connectez-vous pour débloquer %1$s dans votre catalogue.</string>
     <string name="auth_error_name_required">Indiquez votre nom.</string>
     <string name="auth_error_invalid_email">Indiquez une adresse e-mail valide.</string>
+    <string name="auth_error_generic">Connexion impossible pour le moment. Réessayez.</string>
+    <string name="auth_error_too_many_attempts">Trop de tentatives d\'affilée. Patientez un peu et réessayez.</string>
+    <string name="auth_error_unavailable">Les comptes ne sont pas disponibles dans cette version de l\'application.</string>
+    <string name="auth_error_offline">Pas de connexion internet. La connexion et l\'inscription en ont besoin.</string>
+    <string name="auth_email_valid_cd">Adresse e-mail valide</string>
     <string name="auth_error_email_in_use">Un compte existe déjà avec cette adresse e-mail.</string>
     <string name="auth_error_weak_password">Le mot de passe doit contenir au moins 8 caractères et un caractère spécial.</string>
     <string name="password_rule_length">Au moins %1$d caractères</string>
@@ -366,7 +365,7 @@
     <string name="edit_save_profile">Enregistrer</string>
     <string name="edit_change_password">Changer le mot de passe</string>
     <string name="edit_delete_account">Supprimer le compte</string>
-    <string name="edit_delete_explanation">Supprimer le compte efface votre collection, votre photo et votre bannière de cet appareil et, s\'il est connecté aux amis, le compte en ligne aussi. Les statistiques de parties sont conservées.</string>
+    <string name="edit_delete_explanation">Supprimer le compte efface tout ce qu\'il contient : collection, historique, ce que le Gardien a appris, photo, bannière, amis et échanges. Impossible à annuler.</string>
     <string name="edit_delete_confirm_title">Supprimer votre compte ?</string>
     <string name="edit_delete_confirm_message">Cette action est irréversible. Saisissez votre mot de passe pour confirmer.</string>
     <string name="edit_photo_options_title">Photo de profil</string>
@@ -374,6 +373,7 @@
     <string name="edit_option_choose_image">Choisir dans la galerie</string>
     <string name="edit_option_remove_image">Supprimer</string>
     <string name="edit_saved">Profil mis à jour.</string>
+    <string name="edit_email_change_sent">Nous avons envoyé un lien à %1$s. L\'adresse change dès que vous la confirmez.</string>
     <string name="edit_password_changed">Mot de passe modifié.</string>
     <string name="edit_image_updated">Image mise à jour.</string>
     <string name="edit_image_removed">Image supprimée.</string>
@@ -382,7 +382,7 @@
     <string name="edit_error_name_too_long">Le nom ne peut pas dépasser 40 caractères.</string>
     <string name="edit_error_bio_too_long">La bio ne peut pas dépasser 120 caractères.</string>
     <string name="edit_error_wrong_password">Mot de passe actuel incorrect.</string>
-    <string name="edit_error_delete_online_unavailable">Pas de connexion. Connectez-vous à Internet pour supprimer aussi votre compte d\'amis en ligne.</string>
+    <string name="edit_error_offline">Pas de connexion internet. Réessayez.</string>
 
     <!-- Titres du joueur -->
     <string name="rank_newcomer">Nouveau venu</string>
@@ -440,6 +440,7 @@
     <string name="error_not_configured">La clé Comic Vine n\'est pas configurée ou a été refusée.</string>
     <string name="error_server">Impossible de charger les personnages.</string>
     <string name="error_empty_roster">Aucun personnage valide n\'a été trouvé.</string>
+    <string name="error_hero_not_found">Comic Vine n\'a pas la fiche de ce héros.</string>
 
     <!-- Proposition -->
     <string name="answer_intro">Je pense que c\'est :</string>

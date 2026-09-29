@@ -1,7 +1,11 @@
 rules_version = '2';
 
-// Regras dos amigos online do O Vigia (ver FirebaseSocialBackend).
+// Regras do O Vigia (ver FirebasePlayerBackend e FirebaseSocialBackend).
 //
+//   accounts/{uid}                → conta do jogador   só o dono lê e grava
+//     heroes/{characterId}        → heróis desbloqueados
+//     games/{id}                  → histórico de partidas
+//     data/learning               → números e memória do Vigia
 //   usernames/{username}          → { uid }            @usuario único
 //   users/{uid}                   → cartão público     qualquer conta online lê
 //   users/{uid}/friends/{friend}  → { since }          amizades, dos dois lados
@@ -41,6 +45,12 @@ service cloud.firestore {
       return !(field in data) || data[field] is int;
     }
 
+    // Nome e @usuario copiados de um cartão para pedidos e trocas: os mesmos limites dele.
+    function validCardCopy(data, prefix) {
+      return optionalString(data, prefix + 'Name', 40)
+        && optionalString(data, prefix + 'Username', 20);
+    }
+
     function areFriends(a, b) {
       return exists(/databases/$(database)/documents/users/$(a)/friends/$(b));
     }
@@ -50,6 +60,27 @@ service cloud.firestore {
       return data[prefix + 'Id'] is int
         && optionalString(data, prefix + 'Name', 200)
         && optionalString(data, prefix + 'Image', 1000);
+    }
+
+    // A conta do jogador e tudo dela: nome, bio, imagens, heróis, histórico e o que
+    // o Vigia aprendeu. Só o próprio jogador enxerga; os amigos veem o que ele publica
+    // em users/ e profiles/.
+    match /accounts/{uid} {
+      allow read, delete: if isUser(uid);
+      allow create, update: if isUser(uid)
+        && request.resource.data.keys().hasOnly(['name', 'bio', 'avatar', 'banner', 'username',
+             'celebrated', 'updatedAt'])
+        && optionalString(request.resource.data, 'name', 40)
+        && optionalString(request.resource.data, 'bio', 120)
+        && optionalString(request.resource.data, 'avatar', 60000)
+        && optionalString(request.resource.data, 'banner', 400000)
+        && optionalString(request.resource.data, 'username', 20)
+        && (!('celebrated' in request.resource.data) || request.resource.data.celebrated is list)
+        && optionalNumber(request.resource.data, 'updatedAt');
+
+      match /{document=**} {
+        allow read, write: if isUser(uid);
+      }
     }
 
     match /usernames/{name} {
@@ -116,6 +147,8 @@ service cloud.firestore {
         && requestId == request.resource.data.from + '_' + request.resource.data.to
         && request.resource.data.keys().hasOnly(['from', 'to', 'fromName', 'fromUsername', 'fromAvatar',
              'toName', 'toUsername', 'toAvatar', 'createdAt'])
+        && validCardCopy(request.resource.data, 'from')
+        && validCardCopy(request.resource.data, 'to')
         && optionalString(request.resource.data, 'fromAvatar', 60000)
         && optionalString(request.resource.data, 'toAvatar', 60000)
         && exists(/databases/$(database)/documents/users/$(request.resource.data.to))
@@ -140,6 +173,8 @@ service cloud.firestore {
              'toUsername', 'wantId', 'wantName', 'wantImage', 'offerId', 'offerName', 'offerImage',
              'status', 'createdAt'])
         && request.resource.data.status == 'pending'
+        && validCardCopy(request.resource.data, 'from')
+        && validCardCopy(request.resource.data, 'to')
         && validTradeHero(request.resource.data, 'want')
         && validTradeHero(request.resource.data, 'offer')
         && request.resource.data.wantId != request.resource.data.offerId

@@ -8,14 +8,11 @@ import com.ovigia.app.auth.AccountStore;
 import com.ovigia.app.collection.CollectionStore;
 import com.ovigia.app.data.roster.RosterCatalog;
 import com.ovigia.app.learning.LearningStore;
-import com.ovigia.app.profile.ProfileImages;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -23,13 +20,11 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
- * Liga a conta local aos amigos online.
+ * Os amigos online da conta logada.
  *
- * O jogo continua funcionando só no aparelho; a conta online é opcional e usa o
- * mesmo e-mail e senha da local. Ela nasce quando o jogador conecta pela aba de
- * amigos e escolhe um @usuario. A partir daí o perfil (cartão, bio, banner,
- * números, heróis e conquistas) é publicado sempre que algo muda, e heróis
- * desbloqueados em outro aparelho entram na coleção local ao conectar.
+ * A conta do jogador já é a conta online ({@link AccountStore}): para aparecer
+ * para os amigos falta só escolher um @usuario. A partir daí o perfil (cartão,
+ * bio, banner, números, heróis e conquistas) é publicado sempre que algo muda.
  *
  * Amigos também trocam heróis, 1 por 1 ({@link TradeOffer}): ninguém perde o
  * seu, cada um ganha o do outro.
@@ -40,19 +35,12 @@ public final class SocialRepository {
 
     private static final String TAG = "SocialRepository";
 
-    /** Lado maior da foto publicada no cartão. */
-    static final int AVATAR_SHARE_PX = 128;
-    /** Lado maior do banner publicado no perfil. */
-    static final int BANNER_SHARE_PX = 720;
-
     public enum Status {
         /** O app não tem servidor configurado. */
         NOT_CONFIGURED,
         /** Ninguém logado neste aparelho. */
         SIGNED_OUT,
-        /** Conta local sem sessão online aberta: pedir a senha. */
-        NEEDS_CONNECTION,
-        /** Conectado, mas ainda sem @usuario. */
+        /** Logado, mas ainda sem @usuario. */
         NEEDS_USERNAME,
         READY
     }
@@ -110,39 +98,25 @@ public final class SocialRepository {
     private final AccountStore accountStore;
     private final CollectionStore collectionStore;
     private final LearningStore learningStore;
-    private final ProfileImages images;
     private final Supplier<RosterCatalog> roster;
     private final Executor executor;
     private final LongSupplier clock;
-    private final CredentialVault vault;
     private final AtomicBoolean publishQueued = new AtomicBoolean(false);
-    private String encodedAvatarFile;
-    private String encodedAvatar;
 
     /**
      * @param roster   equipes e vilania para as conquistas; pode devolver {@code null}
      * @param executor onde rodam as publicações em segundo plano
      */
     public SocialRepository(SocialBackend backend, AccountStore accountStore, CollectionStore collectionStore,
-                            LearningStore learningStore, ProfileImages images, Supplier<RosterCatalog> roster,
-                            Executor executor, LongSupplier clock) {
-        this(backend, accountStore, collectionStore, learningStore, images, roster, executor, clock,
-                CredentialVault.NONE);
-    }
-
-    /** @param vault guarda a senha de um login que não conseguiu abrir a sessão online, até conseguir */
-    public SocialRepository(SocialBackend backend, AccountStore accountStore, CollectionStore collectionStore,
-                            LearningStore learningStore, ProfileImages images, Supplier<RosterCatalog> roster,
-                            Executor executor, LongSupplier clock, CredentialVault vault) {
+                            LearningStore learningStore, Supplier<RosterCatalog> roster, Executor executor,
+                            LongSupplier clock) {
         this.backend = backend;
         this.accountStore = accountStore;
         this.collectionStore = collectionStore;
         this.learningStore = learningStore;
-        this.images = images;
         this.roster = roster;
         this.executor = executor;
         this.clock = clock;
-        this.vault = vault;
     }
 
     public boolean isConfigured() {
@@ -151,198 +125,13 @@ public final class SocialRepository {
 
     // ---------------------------------------------------------------- sessão
 
-    /** Sem rede: só olha a conta local e a sessão online guardada. */
+    /** Em que passo a conta logada está até os amigos. Sem rede, vale o que o aparelho já tem. */
     public Session session() {
         if (!backend.isConfigured()) return new Session(Status.NOT_CONFIGURED, null, null);
         AccountStore.Account account = accountStore.currentAccount();
         if (account == null) return new Session(Status.SIGNED_OUT, null, null);
-        if (account.cloudUid == null || !account.cloudUid.equals(backend.signedInUid())) {
-            return new Session(Status.NEEDS_CONNECTION, account, null);
-        }
         if (account.username == null) return new Session(Status.NEEDS_USERNAME, account, null);
         return new Session(Status.READY, account, cardFor(account));
-    }
-
-    /**
-     * Conecta a conta logada à conta online, criando-a se ainda não existir. A
-     * senha precisa ser a da conta local, para as duas nunca divergirem.
-     */
-    public Session connect(String password) throws SocialException {
-        requireConfigured();
-        AccountStore.Account account = accountStore.currentAccount();
-        if (account == null) throw new SocialException(SocialException.Error.NOT_CONNECTED);
-        if (!accountStore.verifyPassword(password)) throw new SocialException(SocialException.Error.WRONG_PASSWORD);
-        link(account, password, true);
-        vault.clear();
-        Session session = session();
-        if (session.status == Status.READY) publishIgnoringErrors(session);
-        return session;
-    }
-
-    /**
-     * Depois do login ou do cadastro local: abre a sessão online com a senha que
-     * o jogador acabou de digitar, criando a conta online se ela ainda não
-     * existir. Assim a aba de amigos não pede a senha de novo. Nunca falha.
-     *
-     * Sem rede na hora, a senha vai para o {@link CredentialVault} e a conexão
-     * termina sozinha depois ({@link #resumePending()}) — o jogador já digitou a
-     * senha uma vez e não deve precisar de novo. Só a senha recusada pelo
-     * servidor não é guardada: com ela não há o que tentar.
-     */
-    public void resumeAfterSignIn(AccountStore.Account account, String password) {
-        if (!backend.isConfigured()) return;
-        // Não deixa a sessão online de outra conta aberta.
-        if (account.cloudUid == null) backend.signOut();
-        try {
-            link(account, password, true);
-            vault.clear();
-            Session session = session();
-            if (session.status == Status.READY) publishIgnoringErrors(session);
-        } catch (SocialException e) {
-            if (e.error == SocialException.Error.WRONG_PASSWORD) {
-                vault.clear();
-            } else {
-                vault.save(account.id, password);
-            }
-        }
-    }
-
-    /**
-     * Termina a conexão que o login deixou pela metade, com a senha guardada no
-     * {@link CredentialVault}. Sem nada guardado (ou já online), só devolve a
-     * sessão como está.
-     *
-     * @throws SocialException {@link SocialException.Error#OFFLINE} (ou outro erro
-     *                         de rede) quando ainda não deu: a senha continua
-     *                         guardada, e a aba de amigos mostra "sem conexão"
-     *                         em vez de pedir de novo a senha que o jogador já deu
-     */
-    public Session resumePending() throws SocialException {
-        Session session = session();
-        // Ninguém logado (saiu, ou excluiu a conta): não há o que retomar.
-        if (session.status == Status.SIGNED_OUT) vault.clear();
-        if (session.status != Status.NEEDS_CONNECTION) return session;
-        String password = vault.read(session.account.id);
-        if (password == null) return session;
-        if (session.account.cloudUid == null) backend.signOut();
-        try {
-            link(session.account, password, true);
-        } catch (SocialException e) {
-            if (e.error != SocialException.Error.WRONG_PASSWORD) throw e;
-            // A senha mudou em outro lugar desde o login: essa não serve mais, e aí sim a aba pede.
-            vault.clear();
-            return session();
-        }
-        vault.clear();
-        Session resumed = session();
-        if (resumed.status == Status.READY) publishIgnoringErrors(resumed);
-        return resumed;
-    }
-
-    /** {@link #resumePending()} em segundo plano (ex.: ao abrir o app), sem avisar de nada. */
-    public void resumePendingQuietly() {
-        if (!backend.isConfigured()) return;
-        executor.execute(() -> {
-            try {
-                resumePending();
-            } catch (SocialException | RuntimeException ignored) {
-                // Ainda sem rede: a próxima abertura do app (ou da aba de amigos) tenta de novo.
-            }
-        });
-    }
-
-    /**
-     * Entrar com um e-mail que já tem conta online, num aparelho onde ela não
-     * existe mais (app reinstalado, celular novo): recria a conta local com o que
-     * o servidor guardava — nome, bio, @usuario, foto, banner, heróis e números —
-     * e abre a sessão nela.
-     *
-     * Devolve {@code null} quando não dá para recuperar: sem servidor, sem rede,
-     * senha errada ou e-mail sem conta online. Nunca lança.
-     */
-    @Nullable
-    public AccountStore.Account recover(String email, String password) {
-        if (!backend.isConfigured()) return null;
-        String cleanEmail = email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
-        try {
-            String uid = backend.signIn(cleanEmail, password, false);
-            UserCard card = backend.loadCard(uid);
-            AccountStore.Result result = accountStore.restore(card == null ? null : card.name, cleanEmail,
-                    password, null, uid, cleanEmail, card == null ? null : card.username);
-            if (!result.isSuccess()) {
-                backend.signOut();
-                return null;
-            }
-            restoreFromCloud(result.account, uid, card);
-            vault.clear();
-            publishIgnoringErrors(session());
-            return accountStore.currentAccount();
-        } catch (SocialException e) {
-            return null;
-        }
-    }
-
-    public void onSignedOut() {
-        vault.clear();
-        if (backend.isConfigured()) backend.signOut();
-    }
-
-    private void link(AccountStore.Account account, String password, boolean createIfMissing) throws SocialException {
-        String email = account.cloudEmail != null ? account.cloudEmail : account.email;
-        String uid = backend.signIn(email, password, createIfMissing);
-        if (!accountStore.linkCloud(account.id, uid, email).isSuccess()) {
-            throw new SocialException(SocialException.Error.NOT_CONNECTED);
-        }
-        UserCard remote = backend.loadCard(uid);
-        if (remote == null) return;
-        accountStore.setUsername(account.id, remote.username);
-        restoreFromCloud(account, uid, remote);
-    }
-
-    /**
-     * Traz de volta o que a conta online guardava e ainda falta aqui: heróis,
-     * números das partidas e — só quando o campo está vazio neste aparelho — bio,
-     * foto e banner. Nada que já existe localmente é sobrescrito, então conectar
-     * uma conta em uso não mexe no perfil dela.
-     *
-     * A foto e o banner voltam na versão reduzida que foi publicada; o original
-     * fica no aparelho onde foi escolhido.
-     *
-     * {@code account} precisa ser a conta com sessão aberta: é nela que o perfil
-     * e as imagens são gravados.
-     */
-    private void restoreFromCloud(AccountStore.Account account, String uid, @Nullable UserCard card) {
-        PublicProfile profile;
-        try {
-            profile = backend.loadProfile(uid);
-        } catch (SocialException e) {
-            // Perfil ainda não publicado ou sem rede: o que está no aparelho vale.
-            return;
-        }
-        for (PublicProfile.Hero hero : profile.heroes) {
-            collectionStore.importEntry(account.id, hero.characterId, hero.name, hero.imageUrl, hero.unlockedAt);
-        }
-        learningStore.importStats(account.id, profile.gamesPlayed, profile.engineWins, profile.distinctCharacters);
-        if (account.bio == null && profile.bio != null) {
-            // E-mail inalterado: não pede a senha atual.
-            accountStore.updateProfile(account.name, profile.bio, account.email, null);
-        }
-        if (account.avatarFile == null && card != null) {
-            saveSharedImage(account, AccountStore.ImageKind.AVATAR, card.avatar);
-        }
-        if (account.bannerFile == null) {
-            saveSharedImage(account, AccountStore.ImageKind.BANNER, profile.banner);
-        }
-    }
-
-    /** Grava a imagem publicada como arquivo local do perfil. Ignora falhas: o perfil funciona sem ela. */
-    private void saveSharedImage(AccountStore.Account account, AccountStore.ImageKind kind, @Nullable String shared) {
-        if (shared == null) return;
-        try {
-            accountStore.setImage(kind, images.saveShared(shared, kind, account.id));
-        } catch (IOException | RuntimeException ignored) {
-            // Imagem ilegível ou sem espaço: a conta volta sem ela.
-        }
     }
 
     /** Reserva o @usuario (ou troca o atual) e publica o perfil. */
@@ -355,7 +144,7 @@ public final class SocialRepository {
         String username = Username.normalize(raw);
         if (!Username.isValid(username)) throw new SocialException(SocialException.Error.USERNAME_INVALID);
         AccountStore.Account account = session.account;
-        UserCard card = new UserCard(account.cloudUid, username, account.name, sharedAvatar(account.avatarFile));
+        UserCard card = new UserCard(account.id, username, account.name, account.avatar);
         backend.claimUsername(card, account.username);
         accountStore.setUsername(account.id, username);
         Session ready = session();
@@ -398,28 +187,13 @@ public final class SocialRepository {
     /** O que os amigos veem desta conta, montado a partir dos dados locais. */
     PublicProfile buildProfile(Session session) {
         AccountStore.Account account = session.account;
-        List<PublicProfile.Hero> heroes = new ArrayList<>();
-        Set<Integer> heroIds = new HashSet<>();
-        for (CollectionStore.Entry e : collectionStore.list(account.id)) {
-            heroes.add(new PublicProfile.Hero(e.characterId, e.name, e.imageUrl, e.savedAt));
-            heroIds.add(e.characterId);
-        }
+        List<PublicProfile.Hero> heroes = myHeroes(session);
         LearningStore.Stats stats = learningStore.stats(account.id);
-        List<AchievementProgress> achievements = Achievements.evaluate(heroIds, rosterOrNull(),
-                stats.gamesPlayed, stats.gamesPlayed - stats.engineWins);
-        return new PublicProfile(session.card, account.bio,
-                images.encodeForSharing(account.bannerFile, BANNER_SHARE_PX),
+        List<AchievementProgress> achievements = Achievements.evaluate(idsOf(heroes),
+                RosterCatalog.orNull(roster), stats);
+        return new PublicProfile(session.card, account.bio, account.banner,
                 stats.gamesPlayed, stats.engineWins, stats.distinctCharacters, heroes, achievements,
                 clock.getAsLong());
-    }
-
-    @Nullable
-    private RosterCatalog rosterOrNull() {
-        try {
-            return roster.get();
-        } catch (RuntimeException e) {
-            return null;
-        }
     }
 
     // ---------------------------------------------------------------- amigos
@@ -541,10 +315,10 @@ public final class SocialRepository {
         } catch (SocialException ignored) {
             // O perfil vale sem as propostas: no pior caso o jogador pede de novo e o servidor recusa.
         }
-        RosterCatalog roster = rosterOrNull();
+        RosterCatalog catalog = RosterCatalog.orNull(roster);
         return new FriendProfile(profile, mine,
-                TradeSuggestions.rank(profile.heroes, mine, roster),
-                TradeSuggestions.rank(myHeroes, idsOf(profile.heroes), roster), sent);
+                TradeSuggestions.rank(profile.heroes, mine, catalog),
+                TradeSuggestions.rank(myHeroes, idsOf(profile.heroes), catalog), sent);
     }
 
     // ---------------------------------------------------------------- trocas
@@ -588,7 +362,7 @@ public final class SocialRepository {
         } catch (SocialException e) {
             partial = true;
         }
-        return new TradeChoices(TradeSuggestions.rank(candidates, mine, rosterOrNull()), partial);
+        return new TradeChoices(TradeSuggestions.rank(candidates, mine, RosterCatalog.orNull(roster)), partial);
     }
 
     /**
@@ -632,37 +406,7 @@ public final class SocialRepository {
         return ids;
     }
 
-    // ---------------------------------------------------------------- conta
-
-    /** Depois de trocar a senha local, troca a online também. Nunca falha. */
-    public void onPasswordChanged(AccountStore.Account account, String currentPassword, String newPassword) {
-        if (!backend.isConfigured() || account.cloudUid == null) return;
-        try {
-            backend.changePassword(account.cloudEmail, currentPassword, newPassword);
-        } catch (SocialException ignored) {
-            // A conta online continua com a senha antiga até o jogador conectar de novo.
-        }
-    }
-
-    /**
-     * Antes de excluir a conta local: apaga a online. Só impede a exclusão sem
-     * rede ({@link SocialException.Error#OFFLINE}); se a conta online já não
-     * existe ou tem outra senha, não há mais o que apagar daqui.
-     */
-    public void deleteOnlineAccount(AccountStore.Account account, String password) throws SocialException {
-        if (!backend.isConfigured() || account.cloudUid == null) return;
-        try {
-            backend.deleteAccount(account.cloudEmail, password);
-        } catch (SocialException e) {
-            if (e.error == SocialException.Error.OFFLINE) throw e;
-        }
-    }
-
     // ---------------------------------------------------------------- apoio
-
-    private void requireConfigured() throws SocialException {
-        if (!backend.isConfigured()) throw new SocialException(SocialException.Error.NOT_CONFIGURED);
-    }
 
     private Session requireReady() throws SocialException {
         Session session = session();
@@ -671,17 +415,7 @@ public final class SocialRepository {
                 ? SocialException.Error.NOT_CONFIGURED : SocialException.Error.NOT_CONNECTED);
     }
 
-    private UserCard cardFor(AccountStore.Account account) {
-        return new UserCard(account.cloudUid, account.username, account.name, sharedAvatar(account.avatarFile));
-    }
-
-    /** O nome do arquivo muda a cada foto nova: dá para guardar a última conversão. */
-    private synchronized String sharedAvatar(@Nullable String avatarFile) {
-        if (avatarFile == null) return null;
-        if (!avatarFile.equals(encodedAvatarFile)) {
-            encodedAvatar = images.encodeForSharing(avatarFile, AVATAR_SHARE_PX);
-            encodedAvatarFile = avatarFile;
-        }
-        return encodedAvatar;
+    private static UserCard cardFor(AccountStore.Account account) {
+        return new UserCard(account.id, account.username, account.name, account.avatar);
     }
 }

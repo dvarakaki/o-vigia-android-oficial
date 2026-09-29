@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 9–11. Aprendizado, contas, coleção, imagens do perfil e configurações vão para o backup; o cache do elenco (baixável de novo) fica de fora. -->
+<!--
+  Android 9–11. Só as preferências do aparelho (vibração, tela ligada) vão para o backup.
+  A conta e os dados do jogador moram no Firebase: restaurar arquivos antigos traria de
+  volta uma sessão sem login de verdade (e dados fora da conta).
+-->
 <full-backup-content>
-    <include domain="file" path="learning_store.json" />
-    <include domain="file" path="accounts.json" />
-    <include domain="file" path="collection.json" />
-    <include domain="file" path="profile_media/" />
     <include domain="file" path="settings.json" />
 </full-backup-content>

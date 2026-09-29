@@ -1,5 +1,6 @@
 package com.ovigia.app.settings;
 
+import com.ovigia.app.cloud.FakeCloud;
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule;
 
 import com.ovigia.app.auth.AccountStore;
@@ -36,12 +37,13 @@ public class SettingsViewModelTest {
     private AccountStore accountStore;
     private String accountId;
     private FakeCache cache;
+    private final FakeCloud cloud = new FakeCloud();
 
     @Before
     public void setUp() {
         settings = new SettingsStore(() -> new File(tmp.getRoot(), "settings.json"), direct);
-        learningStore = new LearningStore(() -> new File(tmp.getRoot(), "learning.json"), direct);
-        accountStore = new AccountStore(() -> new File(tmp.getRoot(), "accounts.json"), 1_000);
+        learningStore = new LearningStore(cloud);
+        accountStore = new AccountStore(cloud);
         accountStore.signUp("Davi", "davi@exemplo.com", "segredo#1");
         accountId = accountStore.currentAccount().id;
         cache = new FakeCache(2048);

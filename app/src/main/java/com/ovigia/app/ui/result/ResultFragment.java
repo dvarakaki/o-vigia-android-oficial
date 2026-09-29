@@ -14,13 +14,9 @@ import androidx.navigation.NavDestination;
 import androidx.navigation.fragment.NavHostFragment;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.MultiTransformation;
-import com.bumptech.glide.load.resource.bitmap.CenterCrop;
-import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
 import com.ovigia.app.AppContainer;
 import com.ovigia.app.OVigiaApplication;
 import com.ovigia.app.R;
-import com.ovigia.app.auth.AccountStore;
 import com.ovigia.app.catalog.UnlockRules;
 import com.ovigia.app.databinding.FragmentArtPanelBinding;
 import com.ovigia.app.databinding.PanelResultBinding;
@@ -28,6 +24,7 @@ import com.ovigia.app.game.WatcherMood;
 import com.ovigia.app.learning.LearningStore.Outcome;
 import com.ovigia.app.ui.FadeNavOptions;
 import com.ovigia.app.ui.Motion;
+import com.ovigia.app.ui.Portraits;
 import com.ovigia.app.ui.SystemBarInsets;
 import com.ovigia.app.ui.WatcherArt;
 import com.ovigia.app.ui.auth.AuthFragment;
@@ -75,13 +72,12 @@ public class ResultFragment extends Fragment {
         binding.imageArt.setImageResource(WatcherArt.drawableFor(WatcherMood.forOutcome(outcome())));
         panel.tvMessage.setText(args.getString(ARG_MESSAGE));
         panel.tvCharacterName.setText(args.getString(ARG_CHARACTER_NAME));
-        int radius = getResources().getDimensionPixelSize(R.dimen.gap) * 2;
         Glide.with(this)
                 .load(args.getString(ARG_IMAGE_URL))
                 .placeholder(R.drawable.ic_character_placeholder)
                 .error(R.drawable.ic_character_placeholder)
                 .fallback(R.drawable.ic_character_placeholder)
-                .transform(new MultiTransformation<>(new CenterCrop(), new RoundedCorners(radius)))
+                .transform(Portraits.roundedCrop(Portraits.cardRadius(getResources())))
                 .into(panel.imageCharacter);
 
         // Voltar daqui é voltar ao início: a partida já acabou.
@@ -181,8 +177,8 @@ public class ResultFragment extends Fragment {
         String name = args.getString(ARG_CHARACTER_NAME);
         String imageUrl = args.getString(ARG_IMAGE_URL);
         container.ioExecutor.execute(() -> {
-            AccountStore.Account account = container.accountStore.currentAccount();
-            boolean added = account != null && container.collectionStore.save(account.id, characterId, name, imageUrl);
+            String account = container.accountStore.currentAccountId();
+            boolean added = account != null && container.collectionStore.save(account, characterId, name, imageUrl);
             // Entra na fila do mesmo executor de I/O, logo atrás da gravação acima:
             // o herói novo já conta quando as conquistas forem recalculadas.
             if (added) container.achievements.sync();

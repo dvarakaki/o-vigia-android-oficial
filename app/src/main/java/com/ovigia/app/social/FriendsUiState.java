@@ -15,8 +15,6 @@ public final class FriendsUiState {
         NOT_CONFIGURED,
         /** Sem conta local: a tela manda para o login. */
         SIGNED_OUT,
-        /** Pedir a senha para conectar a conta online. */
-        NEEDS_CONNECTION,
         /** Escolher o @usuario. */
         NEEDS_USERNAME,
         READY,
@@ -62,20 +60,23 @@ public final class FriendsUiState {
     }
 
     FriendsUiState withStatus(Status newStatus) {
-        return new FriendsUiState(newStatus, working, error, me, suggestedUsername, hub, search, busyUids, review);
+        return new FriendsUiState(newStatus, working, error, me, suggestedUsername,
+                hub, search, busyUids, review);
     }
 
     FriendsUiState withWorking(boolean newWorking) {
-        return new FriendsUiState(status, newWorking, newWorking ? null : error, me, suggestedUsername, hub,
-                search, busyUids, review);
+        return new FriendsUiState(status, newWorking, newWorking ? null : error, me, suggestedUsername,
+                hub, search, busyUids, review);
     }
 
     FriendsUiState withError(@Nullable SocialException.Error newError) {
-        return new FriendsUiState(status, false, newError, me, suggestedUsername, hub, search, busyUids, review);
+        return new FriendsUiState(status, false, newError, me, suggestedUsername,
+                hub, search, busyUids, review);
     }
 
     FriendsUiState withMe(@Nullable UserCard newMe) {
-        return new FriendsUiState(status, working, error, newMe, suggestedUsername, hub, search, busyUids, review);
+        return new FriendsUiState(status, working, error, newMe, suggestedUsername,
+                hub, search, busyUids, review);
     }
 
     FriendsUiState withSuggestion(String suggestion) {
@@ -87,22 +88,26 @@ public final class FriendsUiState {
                 : search.withRelationship(newHub.relationshipWith(me.uid, search.result.uid));
         // A proposta aberta sumiu (o amigo cancelou, ou já foi respondida em outro aparelho): fecha a gaveta.
         TradeReview stillOpen = review != null && review.find(newHub.incomingTrades) ? review : null;
-        return new FriendsUiState(status, working, error, me, suggestedUsername, newHub, updated, busyUids,
+        return new FriendsUiState(status, working, error, me, suggestedUsername,
+                newHub, updated, busyUids,
                 stillOpen);
     }
 
     FriendsUiState withSearch(Search newSearch) {
-        return new FriendsUiState(status, working, error, me, suggestedUsername, hub, newSearch, busyUids, review);
+        return new FriendsUiState(status, working, error, me, suggestedUsername,
+                hub, newSearch, busyUids, review);
     }
 
     FriendsUiState withBusy(String uid, boolean busy) {
         Set<String> copy = new HashSet<>(busyUids);
         if (busy) copy.add(uid); else copy.remove(uid);
-        return new FriendsUiState(status, working, error, me, suggestedUsername, hub, search, copy, review);
+        return new FriendsUiState(status, working, error, me, suggestedUsername,
+                hub, search, copy, review);
     }
 
     FriendsUiState withReview(@Nullable TradeReview newReview) {
-        return new FriendsUiState(status, working, error, me, suggestedUsername, hub, search, busyUids, newReview);
+        return new FriendsUiState(status, working, error, me, suggestedUsername,
+                hub, search, busyUids, newReview);
     }
 
     /** Busca por @usuario. Imutável. */
@@ -212,7 +217,6 @@ public final class FriendsUiState {
         REQUEST_DECLINED,
         REQUEST_CANCELED,
         USERNAME_SAVED,
-        CONNECTED,
         TRADE_DECLINED,
         TRADE_CANCELED,
         /** A troca não vale mais (ex.: o jogador já ganhou o herói de outro jeito). */

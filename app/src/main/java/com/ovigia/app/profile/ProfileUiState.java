@@ -4,7 +4,6 @@ import com.ovigia.app.learning.LearningStore.Outcome;
 import com.ovigia.app.social.Achievement;
 import com.ovigia.app.social.AchievementProgress;
 
-import java.io.File;
 import java.util.Collections;
 import java.util.List;
 
@@ -25,9 +24,9 @@ public final class ProfileUiState {
     public final String accountUsername;
     /** {@code null} quando o jogador não escreveu bio. */
     public final String accountBio;
-    /** Foto e banner; {@code null} usa o padrão. */
-    public final File avatarFile;
-    public final File bannerFile;
+    /** Foto e banner em JPEG Base64; {@code null} usa o padrão. */
+    public final String avatar;
+    public final String banner;
     public final int gamesPlayed;
     public final int engineWins;
     /** Partidas em que o Vigia não acertou de primeira. */
@@ -51,8 +50,8 @@ public final class ProfileUiState {
         this.accountEmail = identity.email;
         this.accountUsername = identity.username;
         this.accountBio = identity.bio;
-        this.avatarFile = identity.avatarFile;
-        this.bannerFile = identity.bannerFile;
+        this.avatar = identity.avatar;
+        this.banner = identity.banner;
         this.gamesPlayed = gamesPlayed;
         this.engineWins = engineWins;
         this.playerWins = gamesPlayed - engineWins;
@@ -100,16 +99,16 @@ public final class ProfileUiState {
         final String email;
         final String username;
         final String bio;
-        final File avatarFile;
-        final File bannerFile;
+        final String avatar;
+        final String banner;
 
-        Identity(String name, String email, String username, String bio, File avatarFile, File bannerFile) {
+        Identity(String name, String email, String username, String bio, String avatar, String banner) {
             this.name = name;
             this.email = email;
             this.username = username;
             this.bio = bio;
-            this.avatarFile = avatarFile;
-            this.bannerFile = bannerFile;
+            this.avatar = avatar;
+            this.banner = banner;
         }
     }
 

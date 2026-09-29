@@ -1,5 +1,7 @@
 package com.ovigia.app.social;
 
+import com.ovigia.app.cloud.FakeCloud;
+import com.ovigia.app.cloud.PlayerBackend;
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule;
 
 import com.ovigia.app.auth.AccountStore;
@@ -15,7 +17,9 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.StringReader;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -39,6 +43,7 @@ public class AchievementsTrackerTest {
     public TemporaryFolder tmp = new TemporaryFolder();
 
     private final Executor direct = Runnable::run;
+    private final FakeCloud cloud = new FakeCloud();
     private AccountStore accounts;
     private CollectionStore collection;
     private LearningStore learning;
@@ -48,10 +53,10 @@ public class AchievementsTrackerTest {
 
     @Before
     public void setUp() {
-        accounts = new AccountStore(() -> new File(tmp.getRoot(), "accounts.json"), 1_000);
-        collection = new CollectionStore(() -> new File(tmp.getRoot(), "collection.json"));
-        learning = new LearningStore(() -> new File(tmp.getRoot(), "learning.json"), direct);
-        store = new AchievementsStore(() -> new File(tmp.getRoot(), "achievements.json"));
+        accounts = new AccountStore(cloud);
+        collection = new CollectionStore(cloud);
+        learning = new LearningStore(cloud);
+        store = new AchievementsStore(cloud);
         tracker = new AchievementsTracker(accounts, collection, learning, store, () -> ROSTER, direct, direct);
         accounts.signUp("Davi", "davi@exemplo.com", "segredo#1");
         accountId = accounts.currentAccount().id;
@@ -82,7 +87,10 @@ public class AchievementsTrackerTest {
 
         assertNull("nenhuma conquista nova: dois heróis ainda não fecham nada", lastEvent());
 
-        learning.importStats(accountId, 12, 1, 2);
+        // Outro aparelho jogou 12 partidas nesse meio-tempo.
+        cloud.importLearning(accountId, new PlayerBackend.Learning(12, 1, new HashMap<>(), new HashMap<>()),
+                new ArrayList<>());
+        learning.invalidate();
         tracker.sync();
 
         assertEquals(Arrays.asList(Achievement.BEAT_WATCHER_10, Achievement.GAMES_10, Achievement.BEAT_WATCHER),

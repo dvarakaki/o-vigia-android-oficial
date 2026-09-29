@@ -2,14 +2,13 @@ package com.ovigia.app.auth;
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule;
 
+import com.ovigia.app.cloud.FakeCloud;
 import com.ovigia.app.util.Event;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
-import java.io.File;
 import java.util.concurrent.Executor;
 
 import static org.junit.Assert.assertEquals;
@@ -22,15 +21,14 @@ public class AuthViewModelTest {
     @Rule
     public InstantTaskExecutorRule instantLiveData = new InstantTaskExecutorRule();
 
-    @Rule
-    public TemporaryFolder tmp = new TemporaryFolder();
-
     private final Executor direct = Runnable::run;
+    private FakeCloud cloud;
     private AccountStore store;
 
     @Before
     public void setUp() {
-        store = new AccountStore(() -> new File(tmp.getRoot(), "accounts.json"), 1_000);
+        cloud = new FakeCloud();
+        store = new AccountStore(cloud);
     }
 
     @Test
@@ -53,12 +51,8 @@ public class AuthViewModelTest {
     public void wrongPassword_reportsErrorAndStaysSignedOut() {
         store.signUp("Ana", "ana@b.com", "segredo#1");
         store.signOut();
+        AuthViewModel vm = new AuthViewModel(store, direct, direct);
 
-        // A conta está aqui: só a senha está errada, não adianta procurar no servidor.
-        RecordingOnline online = new RecordingOnline((email, password) -> {
-            throw new AssertionError("procurou no servidor uma conta que existe neste aparelho");
-        });
-        AuthViewModel vm = new AuthViewModel(store, direct, direct, direct, online);
         vm.submit("", "ana@b.com", "errada1");
 
         assertEquals(AccountStore.Error.WRONG_CREDENTIALS, vm.state().getValue().error);
@@ -67,74 +61,38 @@ public class AuthViewModelTest {
     }
 
     @Test
-    public void unknownEmail_isRecoveredFromTheServerBeforeFailing() {
-        RecordingOnline online = new RecordingOnline(
-                (email, password) -> store.restore("Davi", email, password, "vigia", "uid-1", email, "davi").account);
-        AuthViewModel vm = new AuthViewModel(store, direct, direct, direct, online);
+    public void accountCreatedOnAnotherDevice_signsInHere() {
+        new AccountStore(cloud).signUp("Davi", "davi@exemplo.com", "segredo#1");
+        store.signOut();
+        AuthViewModel vm = new AuthViewModel(store, direct, direct);
 
         vm.submit("", "davi@exemplo.com", "segredo#1");
 
         Event<AccountStore.Account> event = vm.signedIn().getValue();
-        assertNotNull("entrar com um e-mail já cadastrado traz a conta de volta", event);
-        AccountStore.Account account = event.consume();
-        assertEquals("Davi", account.name);
-        assertEquals("vigia", account.bio);
-        assertNotNull(store.currentAccount());
-        assertNull(vm.state().getValue().error);
+        assertNotNull("a conta é a do servidor: entra em qualquer aparelho", event);
+        assertEquals("Davi", event.consume().name);
     }
 
     @Test
-    public void unknownEmail_withoutOnlineAccount_keepsTheCredentialsError() {
-        RecordingOnline online = new RecordingOnline((email, password) -> null);
-        AuthViewModel vm = new AuthViewModel(store, direct, direct, direct, online);
+    public void withoutInternet_saysSo() {
+        cloud.offline = true;
+        AuthViewModel vm = new AuthViewModel(store, direct, direct);
 
         vm.submit("", "davi@exemplo.com", "segredo#1");
 
-        assertEquals(AccountStore.Error.WRONG_CREDENTIALS, vm.state().getValue().error);
-        assertNull(vm.signedIn().getValue());
-        assertNull(store.currentAccount());
+        assertEquals(AccountStore.Error.OFFLINE, vm.state().getValue().error);
+        assertFalse(vm.state().getValue().loading);
     }
 
     @Test
-    public void signIn_reopensTheOnlineSessionWithTheTypedPassword() {
-        store.signUp("Ana", "ana@b.com", "segredo#1");
-        store.signOut();
-        RecordingOnline online = new RecordingOnline((email, password) -> {
-            throw new AssertionError("conta local existe: não recupera do servidor");
-        });
-        AuthViewModel vm = new AuthViewModel(store, direct, direct, direct, online);
+    public void unexpectedFailure_endsTheLoadingWithAnError() {
+        cloud.operationFailure = new IllegalStateException("SDK sem inicializar");
+        AuthViewModel vm = new AuthViewModel(store, direct, direct);
 
-        vm.submit("", "ana@b.com", "segredo#1");
+        vm.submit("", "davi@exemplo.com", "segredo#1");
 
-        assertEquals("Ana", online.resumedAccount.name);
-        assertEquals("segredo#1", online.resumedPassword);
-    }
-
-    private interface Recovery {
-        AccountStore.Account recover(String email, String password);
-    }
-
-    /** {@link AuthViewModel.OnlineAccounts} que guarda o que recebeu. */
-    private static final class RecordingOnline implements AuthViewModel.OnlineAccounts {
-
-        private final Recovery recovery;
-        AccountStore.Account resumedAccount;
-        String resumedPassword;
-
-        RecordingOnline(Recovery recovery) {
-            this.recovery = recovery;
-        }
-
-        @Override
-        public void onSignedIn(AccountStore.Account account, String password) {
-            resumedAccount = account;
-            resumedPassword = password;
-        }
-
-        @Override
-        public AccountStore.Account recover(String email, String password) {
-            return recovery.recover(email, password);
-        }
+        assertEquals(AccountStore.Error.FAILED, vm.state().getValue().error);
+        assertFalse(vm.state().getValue().loading);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.ovigia.app.catalog;
 
+import com.ovigia.app.cloud.FakeCloud;
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule;
 
 import com.ovigia.app.auth.AccountStore;
@@ -35,14 +36,15 @@ public class CatalogViewModelTest {
     public TemporaryFolder tmp = new TemporaryFolder();
 
     private final Executor direct = Runnable::run;
+    private final FakeCloud cloud = new FakeCloud();
     private AccountStore accounts;
     private CollectionStore collection;
     private FakeRoster roster;
 
     @Before
     public void setUp() {
-        accounts = new AccountStore(() -> new File(tmp.getRoot(), "accounts.json"), 1_000);
-        collection = new CollectionStore(() -> new File(tmp.getRoot(), "collection.json"));
+        accounts = new AccountStore(cloud);
+        collection = new CollectionStore(cloud);
         roster = new FakeRoster();
         accounts.signUp("Ana", "ana@b.com", "segredo#1");
     }

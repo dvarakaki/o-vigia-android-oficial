@@ -1,5 +1,7 @@
 package com.ovigia.app.util;
 
+import androidx.annotation.VisibleForTesting;
+
 /**
  * Valor de LiveData que deve ser tratado uma única vez (navegação, mensagens).
  *
@@ -23,7 +25,8 @@ public final class Event<T> {
         return content;
     }
 
-    /** Conteúdo sem marcar como consumido (útil em testes). */
+    /** Conteúdo sem marcar como consumido. */
+    @VisibleForTesting
     public T peek() {
         return content;
     }

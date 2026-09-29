@@ -1,5 +1,7 @@
 package com.ovigia.app.auth;
 
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
@@ -12,63 +14,25 @@ import com.ovigia.app.util.Event;
 import java.util.concurrent.Executor;
 
 /**
- * Tela de login/cadastro: alterna o modo, valida no {@link AccountStore} (fora
- * da main thread — o hash da senha é lento de propósito) e avisa o sucesso uma
+ * Tela de login/cadastro: alterna o modo, entra ou cria a conta no
+ * {@link AccountStore} (fora da main thread — é rede) e avisa o sucesso uma
  * única vez.
- *
- * Entrar com um e-mail que este aparelho não conhece não é logo um erro: pode
- * ser uma conta que existe no servidor (app reinstalado, celular novo). Antes de
- * recusar, o {@link OnlineAccounts} tenta trazê-la de volta.
  */
 public class AuthViewModel extends ViewModel {
 
-    /** A parte online do login. Sempre chamada no executor social (rede). */
-    public interface OnlineAccounts {
-
-        /** Depois de entrar ou criar a conta, com a senha digitada: reabre a sessão online. */
-        void onSignedIn(AccountStore.Account account, String password);
-
-        /**
-         * Recria neste aparelho a conta online desse e-mail, já com a sessão
-         * aberta, ou devolve {@code null} se não der (sem rede, senha errada ou
-         * e-mail sem conta online).
-         */
-        @Nullable
-        AccountStore.Account recover(String email, String password);
-    }
-
-    /** Login só local: nada de conta online. */
-    private static final OnlineAccounts OFFLINE_ONLY = new OnlineAccounts() {
-        @Override
-        public void onSignedIn(AccountStore.Account account, String password) { }
-
-        @Nullable
-        @Override
-        public AccountStore.Account recover(String email, String password) {
-            return null;
-        }
-    };
+    private static final String TAG = "AuthViewModel";
 
     private final AccountStore accountStore;
     private final Executor ioExecutor;
-    private final Executor socialExecutor;
     private final Executor mainExecutor;
-    private final OnlineAccounts online;
 
     private final MutableLiveData<AuthUiState> state = new MutableLiveData<>(AuthUiState.initial(AuthUiState.Mode.SIGN_IN));
     private final MutableLiveData<Event<AccountStore.Account>> signedIn = new MutableLiveData<>();
 
     public AuthViewModel(AccountStore accountStore, Executor ioExecutor, Executor mainExecutor) {
-        this(accountStore, ioExecutor, ioExecutor, mainExecutor, OFFLINE_ONLY);
-    }
-
-    public AuthViewModel(AccountStore accountStore, Executor ioExecutor, Executor socialExecutor,
-                         Executor mainExecutor, OnlineAccounts online) {
         this.accountStore = accountStore;
         this.ioExecutor = ioExecutor;
-        this.socialExecutor = socialExecutor;
         this.mainExecutor = mainExecutor;
-        this.online = online;
     }
 
     public LiveData<AuthUiState> state() { return state; }
@@ -88,62 +52,47 @@ public class AuthViewModel extends ViewModel {
         AuthUiState.Mode mode = current.mode;
         state.setValue(AuthUiState.loading(mode));
         ioExecutor.execute(() -> {
-            AccountStore.Result result = mode == AuthUiState.Mode.SIGN_UP
-                    ? accountStore.signUp(name, email, password)
-                    : accountStore.signIn(email, password);
-            if (result.isSuccess()) {
-                socialExecutor.execute(() -> online.onSignedIn(result.account, password));
-                finish(mode, result.account, null);
-                return;
+            AccountStore.Result result;
+            try {
+                result = mode == AuthUiState.Mode.SIGN_UP
+                        ? accountStore.signUp(name, email, password)
+                        : accountStore.signIn(email, password);
+            } catch (RuntimeException e) {
+                // Solta no executor, uma falha inesperada derrubaria o app.
+                Log.e(TAG, "Falha inesperada ao entrar", e);
+                result = null;
             }
-            if (mode == AuthUiState.Mode.SIGN_IN && result.error == AccountStore.Error.WRONG_CREDENTIALS
-                    && !accountStore.knowsEmail(email)) {
-                // E-mail que este aparelho não conhece: a conta pode estar no servidor.
-                // Com a conta aqui, só a senha está errada — não adianta procurar.
-                socialExecutor.execute(() -> {
-                    AccountStore.Account recovered = online.recover(email, password);
-                    finish(mode, recovered, result.error);
-                });
-                return;
-            }
-            finish(mode, null, result.error);
+            AccountStore.Result finished = result;
+            mainExecutor.execute(() -> finish(mode, finished));
         });
     }
 
-    private void finish(AuthUiState.Mode mode, @Nullable AccountStore.Account account,
-                        @Nullable AccountStore.Error error) {
-        mainExecutor.execute(() -> {
-            if (account != null) {
-                state.setValue(AuthUiState.initial(mode));
-                signedIn.setValue(new Event<>(account));
-            } else {
-                state.setValue(AuthUiState.failed(mode, error));
-            }
-        });
+    private void finish(AuthUiState.Mode mode, @Nullable AccountStore.Result result) {
+        if (result != null && result.isSuccess() && result.account != null) {
+            state.setValue(AuthUiState.initial(mode));
+            signedIn.setValue(new Event<>(result.account));
+        } else {
+            state.setValue(AuthUiState.failed(mode, result == null ? AccountStore.Error.FAILED : result.error));
+        }
     }
 
     public static final class Factory implements ViewModelProvider.Factory {
 
         private final AccountStore accountStore;
         private final Executor ioExecutor;
-        private final Executor socialExecutor;
         private final Executor mainExecutor;
-        private final OnlineAccounts online;
 
-        public Factory(AccountStore accountStore, Executor ioExecutor, Executor socialExecutor,
-                       Executor mainExecutor, OnlineAccounts online) {
+        public Factory(AccountStore accountStore, Executor ioExecutor, Executor mainExecutor) {
             this.accountStore = accountStore;
             this.ioExecutor = ioExecutor;
-            this.socialExecutor = socialExecutor;
             this.mainExecutor = mainExecutor;
-            this.online = online;
         }
 
         @NonNull
         @Override
         @SuppressWarnings("unchecked")
         public <T extends ViewModel> T create(@NonNull Class<T> modelClass) {
-            return (T) new AuthViewModel(accountStore, ioExecutor, socialExecutor, mainExecutor, online);
+            return (T) new AuthViewModel(accountStore, ioExecutor, mainExecutor);
         }
     }
 }

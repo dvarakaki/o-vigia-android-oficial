@@ -13,9 +13,9 @@ import com.ovigia.app.catalog.CatalogUiState.Status;
 import com.ovigia.app.collection.CollectionStore;
 import com.ovigia.app.data.CharacterRepository;
 import com.ovigia.app.engine.CharacterProfile;
+import com.ovigia.app.util.SearchText;
 
 import java.text.Collator;
-import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -63,10 +63,10 @@ public class CatalogViewModel extends ViewModel {
         if (started) return;
         started = true;
         ioExecutor.execute(() -> {
-            AccountStore.Account account = accountStore.currentAccount();
-            List<CollectionStore.Entry> unlocked = account == null ? null : collectionStore.list(account.id);
+            String account = accountStore.currentAccountId();
+            List<CollectionStore.Entry> unlocked = account == null ? null : collectionStore.list(account);
             mainExecutor.execute(() -> {
-                accountId = account == null ? null : account.id;
+                accountId = account;
                 if (unlocked == null) {
                     state.setValue(CatalogUiState.of(Status.SIGNED_OUT));
                     return;
@@ -131,7 +131,6 @@ public class CatalogViewModel extends ViewModel {
         allItems = items;
         loaded = true;
         unlockedCount = unlocked.size();
-        if (unlockedCount > totalCount && totalCount > 0) totalCount = unlockedCount;
         publish();
 
         // A revelação toca uma vez: os novos já contam como vistos para a próxima visita.
@@ -148,21 +147,15 @@ public class CatalogViewModel extends ViewModel {
     private void publish() {
         // Antes de carregar, filtro e busca só ficam guardados.
         if (!loaded) return;
-        String needle = normalize(query);
+        String needle = SearchText.fold(query);
         List<Item> visible = new ArrayList<>();
         for (Item item : allItems) {
             if (filter == Filter.UNLOCKED && !item.unlocked) continue;
             // Buscar só encontra quem já foi desbloqueado: não revela nomes bloqueados.
-            if (!needle.isEmpty() && (!item.unlocked || !normalize(item.name).contains(needle))) continue;
+            if (!needle.isEmpty() && (!item.unlocked || !SearchText.fold(item.name).contains(needle))) continue;
             visible.add(item);
         }
         state.setValue(new CatalogUiState(Status.READY, visible, unlockedCount, totalCount, filter, query));
-    }
-
-    /** Minúsculas e sem acentos. */
-    static String normalize(String s) {
-        if (s == null) return "";
-        return Normalizer.normalize(s.trim(), Normalizer.Form.NFD).replaceAll("\\p{M}+", "").toLowerCase(Locale.ROOT);
     }
 
     public static final class Factory implements ViewModelProvider.Factory {

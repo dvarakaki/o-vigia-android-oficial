@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Alternância Entrar / Criar conta: a opção escolhida fica azul, a outra transparente. -->
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:color="@color/vigia_blue" android:state_checked="true" />
-    <item android:color="@android:color/transparent" />
-</selector>

@@ -1,35 +1,39 @@
 package com.ovigia.app.social;
 
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import com.ovigia.app.cloud.FakeCloud;
 
-import java.io.File;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+/** Conquistas comemoradas moram na conta: a festa toca uma vez, não uma vez por aparelho. */
 public class AchievementsStoreTest {
 
-    @Rule
-    public TemporaryFolder tmp = new TemporaryFolder();
-
-    private File file;
+    private FakeCloud cloud;
+    private String ana;
+    private String bia;
 
     @Before
     public void setUp() {
-        file = new File(tmp.getRoot(), "achievements.json");
+        cloud = new FakeCloud();
+        ana = cloud.createUser("ana@exemplo.com", "segredo#1");
+        bia = cloud.createUser("bia@exemplo.com", "segredo#1");
+        cloud.actAs(ana);
     }
 
     /** Progresso com as conquistas pedidas no alvo e o resto zerado. */
     private static List<AchievementProgress> unlocked(Achievement... achievements) {
         List<Achievement> wanted = Arrays.asList(achievements);
-        List<AchievementProgress> progress = new java.util.ArrayList<>();
+        List<AchievementProgress> progress = new ArrayList<>();
         for (Achievement a : Achievement.values()) {
             progress.add(new AchievementProgress(a, wanted.contains(a) ? a.target : 0));
         }
@@ -38,55 +42,62 @@ public class AchievementsStoreTest {
 
     @Test
     public void firstCallOfAnAccount_isASilentBaseline() {
-        AchievementsStore store = new AchievementsStore(() -> file);
-        assertFalse(store.isTracking("ana"));
+        AchievementsStore store = new AchievementsStore(cloud);
+        assertFalse(store.isTracking(ana));
 
-        List<Achievement> fresh = store.claimNewlyUnlocked("ana", unlocked(Achievement.FIRST_HERO,
+        List<Achievement> fresh = store.claimNewlyUnlocked(ana, unlocked(Achievement.FIRST_HERO,
                 Achievement.GAMES_10));
 
         assertTrue("o que já era do jogador não vira festa", fresh.isEmpty());
-        assertTrue(store.isTracking("ana"));
+        assertTrue(store.isTracking(ana));
+        assertEquals(Arrays.asList("FIRST_HERO", "GAMES_10"), cloud.account(ana).celebrated);
     }
 
     @Test
     public void afterTheBaseline_eachAchievementIsClaimedOnce() {
-        AchievementsStore store = new AchievementsStore(() -> file);
-        store.claimNewlyUnlocked("ana", unlocked(Achievement.FIRST_HERO));
+        AchievementsStore store = new AchievementsStore(cloud);
+        store.claimNewlyUnlocked(ana, unlocked(Achievement.FIRST_HERO));
 
-        List<Achievement> fresh = store.claimNewlyUnlocked("ana",
+        List<Achievement> fresh = store.claimNewlyUnlocked(ana,
                 unlocked(Achievement.FIRST_HERO, Achievement.GAMES_10, Achievement.BEAT_WATCHER));
 
         assertEquals(Arrays.asList(Achievement.GAMES_10, Achievement.BEAT_WATCHER), fresh);
         assertEquals("a mesma conquista não cai duas vezes", Collections.emptyList(),
-                store.claimNewlyUnlocked("ana", unlocked(Achievement.FIRST_HERO, Achievement.GAMES_10,
+                store.claimNewlyUnlocked(ana, unlocked(Achievement.FIRST_HERO, Achievement.GAMES_10,
                         Achievement.BEAT_WATCHER)));
     }
 
     @Test
-    public void baselineAndClaims_persistAndAreSeparatedByAccount() {
-        AchievementsStore store = new AchievementsStore(() -> file);
-        store.claimNewlyUnlocked("ana", unlocked(Achievement.FIRST_HERO));
-        store.claimNewlyUnlocked("ana", unlocked(Achievement.FIRST_HERO, Achievement.GAMES_10));
+    public void celebratedOnOneDevice_isNotCelebratedAgainOnAnother() {
+        new AchievementsStore(cloud).claimNewlyUnlocked(ana, unlocked(Achievement.FIRST_HERO));
+        new AchievementsStore(cloud).claimNewlyUnlocked(ana, unlocked(Achievement.FIRST_HERO, Achievement.GAMES_10));
 
-        AchievementsStore reopened = new AchievementsStore(() -> file);
-        assertTrue(reopened.isTracking("ana"));
-        assertTrue("reabrir não repete a festa",
-                reopened.claimNewlyUnlocked("ana", unlocked(Achievement.FIRST_HERO, Achievement.GAMES_10)).isEmpty());
-        assertFalse("outra conta ainda não tem marco zero", reopened.isTracking("bia"));
-        assertTrue(reopened.claimNewlyUnlocked("bia", unlocked(Achievement.FIRST_HERO)).isEmpty());
+        AchievementsStore otherDevice = new AchievementsStore(cloud);
+        assertTrue(otherDevice.isTracking(ana));
+        assertTrue("outro aparelho não repete a festa",
+                otherDevice.claimNewlyUnlocked(ana, unlocked(Achievement.FIRST_HERO, Achievement.GAMES_10)).isEmpty());
     }
 
     @Test
-    public void deleteAccount_forgetsEverythingOfThatAccount() {
-        AchievementsStore store = new AchievementsStore(() -> file);
-        store.claimNewlyUnlocked("ana", unlocked(Achievement.FIRST_HERO));
-        store.claimNewlyUnlocked("bia", unlocked());
+    public void accounts_areSeparated() {
+        AchievementsStore store = new AchievementsStore(cloud);
+        store.claimNewlyUnlocked(ana, unlocked(Achievement.FIRST_HERO));
 
-        store.deleteAccount("ana");
+        cloud.actAs(bia);
+        assertFalse("outra conta ainda não tem marco zero", store.isTracking(bia));
+        assertTrue(store.claimNewlyUnlocked(bia, unlocked(Achievement.FIRST_HERO)).isEmpty());
+    }
 
-        assertFalse(store.isTracking("ana"));
-        assertTrue("a outra conta continua intacta", store.isTracking("bia"));
-        assertTrue(new AchievementsStore(() -> file).claimNewlyUnlocked("ana",
-                unlocked(Achievement.FIRST_HERO)).isEmpty());
+    @Test
+    public void withoutInternetAndNothingCached_nothingIsBaselined() {
+        cloud.accountUnreachable = true;
+        AchievementsStore store = new AchievementsStore(cloud);
+
+        assertTrue(store.claimNewlyUnlocked(ana, unlocked(Achievement.FIRST_HERO)).isEmpty());
+        assertNull("o marco zero espera a conta ser lida de verdade", cloud.account(ana));
+
+        cloud.accountUnreachable = false;
+        store.claimNewlyUnlocked(ana, unlocked(Achievement.FIRST_HERO));
+        assertTrue(store.isTracking(ana));
     }
 }

@@ -5,7 +5,7 @@ import androidx.arch.core.executor.testing.InstantTaskExecutorRule;
 import com.ovigia.app.auth.AccountStore;
 import com.ovigia.app.collection.CollectionStore;
 import com.ovigia.app.learning.LearningStore;
-import com.ovigia.app.profile.FakeProfileImages;
+import com.ovigia.app.cloud.FakeCloud;
 import com.ovigia.app.social.FriendsUiState.Message;
 import com.ovigia.app.social.FriendsUiState.Status;
 import com.ovigia.app.util.Event;
@@ -13,7 +13,6 @@ import com.ovigia.app.util.Event;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import java.util.concurrent.Executor;
 
@@ -22,28 +21,24 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-/** Aba de amigos do começo (conectar) ao fim (pedidos e amigos), com o servidor falso. */
+/** Aba de amigos do começo (@usuario) ao fim (pedidos e amigos), com o servidor falso. */
 public class FriendsViewModelTest {
 
     @Rule
     public InstantTaskExecutorRule instantLiveData = new InstantTaskExecutorRule();
 
-    @Rule
-    public TemporaryFolder tmp = new TemporaryFolder();
-
     private final Executor direct = Runnable::run;
-    private FakeSocialBackend backend;
+    private FakeCloud backend;
     private AccountStore accounts;
     private SocialRepository repository;
 
     @Before
     public void setUp() {
-        backend = new FakeSocialBackend();
-        accounts = new AccountStore(() -> tmp.getRoot().toPath().resolve("accounts.json").toFile(), 1_000);
-        CollectionStore collection = new CollectionStore(() -> tmp.getRoot().toPath().resolve("collection.json").toFile());
-        LearningStore learning = new LearningStore(() -> tmp.getRoot().toPath().resolve("learning.json").toFile(), direct);
-        repository = new SocialRepository(backend, accounts, collection, learning,
-                new FakeProfileImages(tmp.getRoot()), () -> null, direct, () -> 1L);
+        backend = new FakeCloud();
+        accounts = new AccountStore(backend);
+        CollectionStore collection = new CollectionStore(backend);
+        LearningStore learning = new LearningStore(backend);
+        repository = new SocialRepository(backend, accounts, collection, learning, () -> null, direct, () -> 1L);
         accounts.signUp("Davi Souza", "davi@exemplo.com", "segredo#1");
     }
 
@@ -51,48 +46,25 @@ public class FriendsViewModelTest {
         return new FriendsViewModel(repository, direct, direct);
     }
 
-    @Test
-    public void signInThatCouldNotConnect_showsOffline_thenConnectsByItself_neverAskingThePassword() {
-        CollectionStore collection = new CollectionStore(() -> tmp.getRoot().toPath().resolve("c2.json").toFile());
-        LearningStore learning = new LearningStore(() -> tmp.getRoot().toPath().resolve("l2.json").toFile(), direct);
-        repository = new SocialRepository(backend, accounts, collection, learning,
-                new FakeProfileImages(tmp.getRoot()), () -> null, direct, () -> 1L, new FakeCredentialVault());
-        backend.offline = true;
-        repository.resumeAfterSignIn(accounts.currentAccount(), "segredo#1");
-
-        FriendsViewModel vm = newViewModel();
-        vm.start();
-        assertEquals("sem rede: 'sem conexão', não a tela da senha",
-                FriendsUiState.Status.ERROR, vm.state().getValue().status);
-        assertEquals(SocialException.Error.OFFLINE, vm.state().getValue().error);
-
-        backend.offline = false;
-        vm.refresh();
-        assertEquals("a rede voltou: conectou sozinho, falta só o @usuario",
-                FriendsUiState.Status.NEEDS_USERNAME, vm.state().getValue().status);
-    }
-
     private static Message lastMessage(FriendsViewModel vm) {
         Event<Message> event = vm.messages().getValue();
         return event == null ? null : event.consume();
     }
 
+    /** Conta logada (já é a conta online) com o @usuario escolhido. */
     private FriendsViewModel onlineAs(String username) {
         FriendsViewModel vm = newViewModel();
         vm.start();
-        vm.connect("segredo#1");
         vm.claimUsername(username);
         return vm;
     }
 
     @Test
-    public void newAccount_goesFromPasswordToUsernameToReady() {
+    public void signedInAccount_goesStraightToUsernameThenReady() {
         FriendsViewModel vm = newViewModel();
         vm.start();
-        assertEquals(Status.NEEDS_CONNECTION, vm.state().getValue().status);
-
-        vm.connect("segredo#1");
-        assertEquals(Status.NEEDS_USERNAME, vm.state().getValue().status);
+        assertEquals("sem tela de senha: o login já conectou", Status.NEEDS_USERNAME,
+                vm.state().getValue().status);
         assertEquals("sugere a partir do nome", "davisouza", vm.state().getValue().suggestedUsername);
 
         vm.claimUsername("davi");
@@ -104,21 +76,38 @@ public class FriendsViewModelTest {
     }
 
     @Test
-    public void wrongPassword_staysOnTheStepWithTheError() {
+    public void unexpectedFailureWhileClaimingUsername_showsTheErrorInsteadOfCrashing() {
         FriendsViewModel vm = newViewModel();
         vm.start();
-        vm.connect("errada");
+        backend.operationFailure = new IllegalStateException("SDK sem inicializar");
+
+        vm.claimUsername("davi");
 
         FriendsUiState state = vm.state().getValue();
-        assertEquals(Status.NEEDS_CONNECTION, state.status);
-        assertEquals(SocialException.Error.WRONG_PASSWORD, state.error);
+        assertEquals(Status.NEEDS_USERNAME, state.status);
+        assertEquals(SocialException.Error.UNKNOWN, state.error);
         assertFalse(state.working);
     }
 
     @Test
+    public void unexpectedFailureInAnAction_freesTheRowAndWarns() {
+        UserCard ana = backend.registerOther("ana@exemplo.com", "senha-ana", "ana", "Ana");
+        FriendsViewModel vm = onlineAs("davi");
+        backend.operationFailure = new IllegalArgumentException("caminho de documento inválido");
+
+        vm.search("ana");
+        assertEquals(SocialException.Error.UNKNOWN, vm.state().getValue().search.error);
+        assertFalse(vm.state().getValue().search.searching);
+
+        vm.sendRequest(ana);
+        assertEquals(Message.ACTION_FAILED, lastMessage(vm));
+        assertTrue("a linha volta a responder", vm.state().getValue().busyUids.isEmpty());
+    }
+
+    @Test
     public void unexpectedFailureWhileLoading_showsTheErrorStepInsteadOfCrashing() {
-        accounts.linkCloud(accounts.currentAccount().id, "uid-1", "davi@exemplo.com");
-        backend.sessionFailure = new IllegalStateException("falha ao ler a sessão online");
+        onlineAs("davi");
+        backend.operationFailure = new IllegalStateException("falha no SDK");
         FriendsViewModel vm = newViewModel();
         vm.start();
 
@@ -126,9 +115,9 @@ public class FriendsViewModelTest {
         assertEquals(Status.ERROR, state.status);
         assertEquals(SocialException.Error.UNKNOWN, state.error);
 
-        backend.sessionFailure = null;
+        backend.operationFailure = null;
         vm.refresh();
-        assertEquals("tentar de novo volta ao fluxo normal", Status.NEEDS_CONNECTION, vm.state().getValue().status);
+        assertEquals("tentar de novo volta ao fluxo normal", Status.READY, vm.state().getValue().status);
     }
 
     @Test

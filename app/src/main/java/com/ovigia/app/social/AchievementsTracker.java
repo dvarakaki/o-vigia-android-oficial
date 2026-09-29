@@ -1,6 +1,5 @@
 package com.ovigia.app.social;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
@@ -86,23 +85,15 @@ public final class AchievementsTracker {
     }
 
     private List<Achievement> claim() {
+        // A conta inteira, e não só o id: na primeira leitura ela traz o que as versões antigas
+        // guardavam, e só então o marco zero é cravado — senão os heróis trazidos virariam festa.
         AccountStore.Account account = accountStore.currentAccount();
         if (account == null) return Collections.emptyList();
         List<Integer> heroIds = new ArrayList<>();
         for (CollectionStore.Entry e : collectionStore.list(account.id)) heroIds.add(e.characterId);
         LearningStore.Stats stats = learningStore.stats(account.id);
-        List<AchievementProgress> progress = Achievements.evaluate(heroIds, rosterOrNull(),
-                stats.gamesPlayed, stats.gamesPlayed - stats.engineWins);
+        List<AchievementProgress> progress = Achievements.evaluate(heroIds, RosterCatalog.orNull(roster), stats);
         return headline(achievementsStore.claimNewlyUnlocked(account.id, progress));
-    }
-
-    @Nullable
-    private RosterCatalog rosterOrNull() {
-        try {
-            return roster.get();
-        } catch (RuntimeException e) {
-            return null;
-        }
     }
 
     /** As mais raras primeiro (e no máximo {@link #MAX_PER_BURST}): a leva abre com o que vale mais. */

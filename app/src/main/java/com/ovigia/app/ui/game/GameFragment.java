@@ -20,7 +20,6 @@ import com.ovigia.app.R;
 import com.ovigia.app.data.CharacterRepository.LoadError;
 import com.ovigia.app.game.GameEvent;
 import com.ovigia.app.game.GameViewModel;
-import com.ovigia.app.settings.SettingsStore;
 import com.ovigia.app.ui.Haptics;
 import com.ovigia.app.ui.SystemBarInsets;
 
@@ -32,7 +31,6 @@ import com.ovigia.app.ui.SystemBarInsets;
 public abstract class GameFragment extends Fragment {
 
     protected GameViewModel viewModel;
-    private SettingsStore settings;
     private Haptics haptics;
 
     protected GameFragment(int layoutId) {
@@ -44,10 +42,9 @@ public abstract class GameFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         SystemBarInsets.padTop(view);
         AppContainer container = ((OVigiaApplication) requireActivity().getApplication()).container();
-        settings = container.settingsStore;
         haptics = container.haptics;
         // Vale enquanto a tela da partida estiver visível; as outras telas seguem o tempo do aparelho.
-        view.setKeepScreenOn(settings.keepScreenOn());
+        view.setKeepScreenOn(container.settingsStore.keepScreenOn());
         viewModel = obtainViewModel();
         viewModel.events().observe(getViewLifecycleOwner(), event -> {
             GameEvent gameEvent = event.consume();
@@ -93,6 +90,7 @@ public abstract class GameFragment extends Fragment {
             case RATE_LIMITED: return R.string.error_rate_limited;
             case NOT_CONFIGURED: return R.string.error_not_configured;
             case EMPTY_ROSTER: return R.string.error_empty_roster;
+            case NOT_FOUND: return R.string.error_hero_not_found;
             case SERVER_ERROR:
             default: return R.string.error_server;
         }

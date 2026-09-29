@@ -72,8 +72,9 @@ public class FriendProfileViewModel extends ViewModel {
             try {
                 SocialRepository.FriendProfile loaded = repository.friendProfile(friendUid);
                 mainExecutor.execute(() -> state.setValue(FriendProfileUiState.ready(loaded)));
-            } catch (SocialException e) {
-                post(s -> s.withStatus(Status.ERROR, e.error));
+            } catch (SocialException | RuntimeException e) {
+                SocialException.Error error = SocialException.errorOf(e);
+                post(s -> s.withStatus(Status.ERROR, error));
             }
         });
     }
@@ -86,10 +87,11 @@ public class FriendProfileViewModel extends ViewModel {
             try {
                 repository.removeFriend(friendUid);
                 post(s -> s.withRemoving(false).withStatus(Status.REMOVED, null));
-            } catch (SocialException e) {
+            } catch (SocialException | RuntimeException e) {
+                SocialException.Error error = SocialException.errorOf(e);
                 mainExecutor.execute(() -> {
                     state.setValue(state.getValue().withRemoving(false));
-                    removeFailures.setValue(new Event<>(e.error));
+                    removeFailures.setValue(new Event<>(error));
                 });
             }
         });
@@ -136,9 +138,9 @@ public class FriendProfileViewModel extends ViewModel {
                 TradeOffer sent = repository.proposeTrade(profile.card, profile.heroes, proposal.want.hero, offer.hero);
                 post(s -> s.withSent(sent));
                 tradeMessage(TradeMessage.PROPOSAL_SENT);
-            } catch (SocialException e) {
+            } catch (SocialException | RuntimeException e) {
                 post(s -> s.proposal == null ? s : s.withProposal(s.proposal.withSending(false)));
-                tradeMessage(failure(e.error));
+                tradeMessage(failure(SocialException.errorOf(e)));
             }
         });
     }
@@ -158,9 +160,9 @@ public class FriendProfileViewModel extends ViewModel {
                 repository.dismissTrade(target);
                 post(s -> s.withoutSent(tradeId));
                 tradeMessage(TradeMessage.PROPOSAL_CANCELED);
-            } catch (SocialException e) {
+            } catch (SocialException | RuntimeException e) {
                 post(s -> s.withCanceling(tradeId, false));
-                tradeMessage(failure(e.error));
+                tradeMessage(failure(SocialException.errorOf(e)));
             }
         });
     }

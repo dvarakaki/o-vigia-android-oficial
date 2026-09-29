@@ -180,8 +180,17 @@ public final class AchievementStage {
         binding.tvTitle.setText(title);
         binding.tvDescription.setText(description);
         // O cartão é decorativo para o TalkBack: quem avisa é o anúncio, de uma vez só.
-        binding.getRoot().announceForAccessibility(
-                context.getString(R.string.achievement_unlocked_cd, kicker, title, description));
+        announce(context.getString(R.string.achievement_unlocked_cd, kicker, title, description));
+    }
+
+    /**
+     * Anúncio avulso ao TalkBack. Descontinuado no Android 16 em favor de regiões
+     * "ao vivo", mas o cartão passa por cima de qualquer tela e some sozinho: não
+     * há região estável para marcar, e o anúncio continua funcionando.
+     */
+    @SuppressWarnings("deprecation")
+    private void announce(String text) {
+        binding.getRoot().announceForAccessibility(text);
     }
 
     /** Tudo apagado, à espera da cena. */

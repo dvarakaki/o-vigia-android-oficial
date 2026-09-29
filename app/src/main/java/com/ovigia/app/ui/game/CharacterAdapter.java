@@ -9,12 +9,10 @@ import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.MultiTransformation;
-import com.bumptech.glide.load.resource.bitmap.CenterCrop;
-import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
 import com.ovigia.app.R;
 import com.ovigia.app.databinding.ItemCharacterBinding;
 import com.ovigia.app.engine.CharacterProfile;
+import com.ovigia.app.ui.Portraits;
 
 /** Lista de personagens com seleção única. */
 final class CharacterAdapter extends ListAdapter<CharacterProfile, CharacterAdapter.Holder> {
@@ -69,12 +67,11 @@ final class CharacterAdapter extends ListAdapter<CharacterProfile, CharacterAdap
             setSelectedId(profile.id);
             listener.onSelected(profile.id);
         });
-        int radius = holder.itemView.getResources().getDimensionPixelSize(R.dimen.gap) * 2;
         Glide.with(holder.itemView)
                 .load(profile.thumbnailUrl)
                 .placeholder(R.drawable.ic_character_placeholder)
                 .error(R.drawable.ic_character_placeholder)
-                .transform(new MultiTransformation<>(new CenterCrop(), new RoundedCorners(radius)))
+                .transform(Portraits.roundedCrop(Portraits.cardRadius(holder.itemView.getResources())))
                 .into(holder.binding.image);
     }
 

@@ -1,38 +1,30 @@
 package com.ovigia.app.learning;
 
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import com.ovigia.app.cloud.FakeCloud;
 
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import org.junit.Before;
+import org.junit.Test;
+
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.Executor;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+/** A memória do Vigia mora na conta online: o que ele aprende vale em qualquer aparelho. */
 public class LearningStoreTest {
 
-    private static final String ACCOUNT = "conta-a";
-    private static final String OTHER = "conta-b";
-
-    @Rule
-    public TemporaryFolder tmp = new TemporaryFolder();
-
-    /** Executa na hora: gravações ficam síncronas e verificáveis. */
-    private final Executor direct = Runnable::run;
-    private File file;
+    private FakeCloud cloud;
+    private String account;
+    private String other;
 
     @Before
     public void setUp() {
-        file = new File(tmp.getRoot(), "learning_store.json");
+        cloud = new FakeCloud();
+        account = cloud.createUser("ana@exemplo.com", "segredo#1");
+        other = cloud.createUser("bia@exemplo.com", "segredo#1");
+        cloud.actAs(account);
     }
 
     private static List<LearningStore.AnswerRecord> answers(Object... keyValue) {
@@ -45,14 +37,14 @@ public class LearningStoreTest {
 
     @Test
     public void unknownCharacter_isNeutral() {
-        LearningStore store = new LearningStore(() -> file, direct);
-        assertEquals(1.0, store.popularityBoost(ACCOUNT, 7), 1e-9);
-        assertNull(store.blendedBelief(ACCOUNT, 7, "power_voo", 0.1));
+        LearningStore store = new LearningStore(cloud);
+        assertEquals(1.0, store.popularityBoost(account, 7), 1e-9);
+        assertNull(store.blendedBelief(account, 7, "power_voo", 0.1));
     }
 
     @Test
     public void withoutSession_readsAreNeutralAndWritesAreIgnored() {
-        LearningStore store = new LearningStore(() -> file, direct);
+        LearningStore store = new LearningStore(cloud);
         store.recordGame(null, 7, answers("power_voo", 1.0), LearningStore.Outcome.ENGINE_GUESSED);
         store.recordLoss(null);
 
@@ -60,15 +52,16 @@ public class LearningStoreTest {
         assertEquals(0, store.stats(null).gamesPlayed);
         assertNull(store.blendedBelief(null, 7, "power_voo", 0.1));
         assertTrue(store.history(null, 5, 5).recentGames.isEmpty());
+        assertEquals("nada chegou ao servidor", 0, cloud.learningOf(account).gamesPlayed);
     }
 
     @Test
     public void popularityBoost_growsButLogarithmically() {
-        LearningStore store = new LearningStore(() -> file, direct);
-        store.recordGame(ACCOUNT, 7, answers(), LearningStore.Outcome.ENGINE_GUESSED);
-        double one = store.popularityBoost(ACCOUNT, 7);
-        for (int i = 0; i < 19; i++) store.recordGame(ACCOUNT, 7, answers(), LearningStore.Outcome.ENGINE_GUESSED);
-        double twenty = store.popularityBoost(ACCOUNT, 7);
+        LearningStore store = new LearningStore(cloud);
+        store.recordGame(account, 7, answers(), LearningStore.Outcome.ENGINE_GUESSED);
+        double one = store.popularityBoost(account, 7);
+        for (int i = 0; i < 19; i++) store.recordGame(account, 7, answers(), LearningStore.Outcome.ENGINE_GUESSED);
+        double twenty = store.popularityBoost(account, 7);
 
         assertTrue(one > 1.0);
         assertTrue(twenty > one);
@@ -77,14 +70,14 @@ public class LearningStoreTest {
 
     @Test
     public void blendedBelief_movesTowardsAnswersAsEvidenceAccumulates() {
-        LearningStore store = new LearningStore(() -> file, direct);
-        store.recordGame(ACCOUNT, 7, answers("power_voo", 1.0), LearningStore.Outcome.REVEALED_AFTER_LOSS);
-        double afterOne = store.blendedBelief(ACCOUNT, 7, "power_voo", 0.1);
+        LearningStore store = new LearningStore(cloud);
+        store.recordGame(account, 7, answers("power_voo", 1.0), LearningStore.Outcome.REVEALED_AFTER_LOSS);
+        double afterOne = store.blendedBelief(account, 7, "power_voo", 0.1);
 
         for (int i = 0; i < 9; i++) {
-            store.recordGame(ACCOUNT, 7, answers("power_voo", 1.0), LearningStore.Outcome.REVEALED_AFTER_LOSS);
+            store.recordGame(account, 7, answers("power_voo", 1.0), LearningStore.Outcome.REVEALED_AFTER_LOSS);
         }
-        double afterTen = store.blendedBelief(ACCOUNT, 7, "power_voo", 0.1);
+        double afterTen = store.blendedBelief(account, 7, "power_voo", 0.1);
 
         assertEquals("K=5: uma resposta pesa 1/6", 0.1 * 5 / 6 + 1.0 / 6, afterOne, 1e-9);
         assertTrue(afterTen > afterOne);
@@ -93,36 +86,40 @@ public class LearningStoreTest {
 
     @Test
     public void naoSeiAnswers_areIgnored() {
-        LearningStore store = new LearningStore(() -> file, direct);
-        store.recordGame(ACCOUNT, 7, answers("power_voo", Double.NaN), LearningStore.Outcome.ENGINE_GUESSED);
-        assertNull(store.blendedBelief(ACCOUNT, 7, "power_voo", 0.1));
+        LearningStore store = new LearningStore(cloud);
+        store.recordGame(account, 7, answers("power_voo", Double.NaN), LearningStore.Outcome.ENGINE_GUESSED);
+        assertNull(store.blendedBelief(account, 7, "power_voo", 0.1));
+        assertTrue("o servidor não recebe NaN", cloud.gamesOf(account).get(0).answers.isEmpty());
     }
 
     @Test
-    public void state_survivesReopeningTheStore() {
-        LearningStore store = new LearningStore(() -> file, direct);
-        store.recordGame(ACCOUNT, 7, answers("power_voo", 1.0), LearningStore.Outcome.ENGINE_GUESSED);
-        store.recordLoss(ACCOUNT);
+    public void whatWasLearned_isTheSameOnAnotherDevice() {
+        LearningStore store = new LearningStore(cloud);
+        store.recordGame(account, 7, answers("power_voo", 1.0), LearningStore.Outcome.ENGINE_GUESSED);
+        store.recordLoss(account);
 
-        LearningStore reopened = new LearningStore(() -> file, direct);
-        assertTrue(reopened.popularityBoost(ACCOUNT, 7) > 1.0);
-        LearningStore.Stats stats = reopened.stats(ACCOUNT);
+        LearningStore otherDevice = new LearningStore(cloud);
+        assertTrue(otherDevice.popularityBoost(account, 7) > 1.0);
+        assertEquals(store.blendedBelief(account, 7, "power_voo", 0.1),
+                otherDevice.blendedBelief(account, 7, "power_voo", 0.1));
+        LearningStore.Stats stats = otherDevice.stats(account);
         assertEquals(2, stats.gamesPlayed);
         assertEquals(1, stats.engineWins);
+        assertEquals(1, stats.distinctCharacters);
         assertEquals(0.5, stats.engineWinRate(), 1e-9);
-        assertFalse("não deve sobrar arquivo temporário", new File(tmp.getRoot(), "learning_store.json.tmp").exists());
+        assertEquals(1, stats.playerWins());
     }
 
     @Test
     public void history_ranksFavoritesAndListsRecentGamesNewestFirst() {
-        LearningStore store = new LearningStore(() -> file, direct);
-        store.recordGame(ACCOUNT, 3, answers(), LearningStore.Outcome.ENGINE_GUESSED);
-        store.recordGame(ACCOUNT, 9, answers(), LearningStore.Outcome.REVEALED_AFTER_LOSS);
-        store.recordGame(ACCOUNT, 9, answers(), LearningStore.Outcome.PICKED_FROM_ALTERNATIVES);
-        store.recordGame(ACCOUNT, 5, answers(), LearningStore.Outcome.ENGINE_GUESSED);
-        store.recordLoss(ACCOUNT);
+        LearningStore store = new LearningStore(cloud);
+        store.recordGame(account, 3, answers(), LearningStore.Outcome.ENGINE_GUESSED);
+        store.recordGame(account, 9, answers(), LearningStore.Outcome.REVEALED_AFTER_LOSS);
+        store.recordGame(account, 9, answers(), LearningStore.Outcome.PICKED_FROM_ALTERNATIVES);
+        store.recordGame(account, 5, answers(), LearningStore.Outcome.ENGINE_GUESSED);
+        store.recordLoss(account);
 
-        LearningStore.PlayerHistory history = store.history(ACCOUNT, 2, 3);
+        LearningStore.PlayerHistory history = store.history(account, 2, 3);
 
         assertEquals(5, history.stats.gamesPlayed);
         assertEquals(2, history.favorites.size());
@@ -138,92 +135,31 @@ public class LearningStoreTest {
 
     @Test
     public void accounts_areIsolated() {
-        LearningStore store = new LearningStore(() -> file, direct);
-        store.recordGame(ACCOUNT, 7, answers("power_voo", 1.0), LearningStore.Outcome.ENGINE_GUESSED);
-        store.recordLoss(ACCOUNT);
+        LearningStore store = new LearningStore(cloud);
+        store.recordGame(account, 7, answers("power_voo", 1.0), LearningStore.Outcome.ENGINE_GUESSED);
+        store.recordLoss(account);
 
-        assertEquals(2, store.stats(ACCOUNT).gamesPlayed);
-        assertEquals(0, store.stats(OTHER).gamesPlayed);
-        assertEquals(1.0, store.popularityBoost(OTHER, 7), 1e-9);
-        assertNull(store.blendedBelief(OTHER, 7, "power_voo", 0.1));
-        assertTrue(store.history(OTHER, 5, 5).recentGames.isEmpty());
-    }
-
-    @Test
-    public void corruptedFile_startsFresh() throws Exception {
-        Files.write(file.toPath(), "{ isto não é json".getBytes(StandardCharsets.UTF_8));
-        LearningStore store = new LearningStore(() -> file, direct);
-        assertEquals(0, store.stats(ACCOUNT).gamesPlayed);
-    }
-
-    @Test
-    public void oldGlobalFile_isDiscardedInFavorOfFreshPerAccountState() throws Exception {
-        // Formato antigo (globais no topo, sem "byAccount") não migra: começa do zero por conta.
-        Files.write(file.toPath(),
-                "{\"gamesPlayed\":10,\"engineWins\":5,\"picksById\":{\"7\":3}}".getBytes(StandardCharsets.UTF_8));
-        LearningStore store = new LearningStore(() -> file, direct);
-        assertEquals(0, store.stats(ACCOUNT).gamesPlayed);
-        assertEquals(1.0, store.popularityBoost(ACCOUNT, 7), 1e-9);
-    }
-
-    /**
-     * Arquivo como os releases 1.1.0 a 1.2.2 gravaram: sem regra de keep para o bloco da conta,
-     * o R8 renomeou os campos (a…f) e, depois de reabrir o app, regravou os números como 2.0.
-     */
-    private static final String OBFUSCATED_FILE = "{\"byAccount\":{\"" + ACCOUNT + "\":{"
-            + "\"a\":{\"7\":2.0},"
-            + "\"b\":{\"7\":{\"power_voo\":[2.0,2.0]}},"
-            + "\"c\":[{\"answers\":[{\"key\":\"power_voo\",\"value\":1.0}],\"correctId\":7,"
-            + "\"outcome\":\"ENGINE_GUESSED\",\"timestamp\":1000}],"
-            + "\"d\":2,\"e\":1,\"f\":4}}}";
-
-    @Test
-    public void fileWrittenWithObfuscatedFieldNames_isReadBackWithEverythingTheReleaseSaved() throws Exception {
-        Files.write(file.toPath(), OBFUSCATED_FILE.getBytes(StandardCharsets.UTF_8));
-        LearningStore store = new LearningStore(() -> file, direct);
-
-        LearningStore.PlayerHistory history = store.history(ACCOUNT, 5, 5);
-
-        assertEquals(2, history.stats.gamesPlayed);
-        assertEquals(1, history.stats.engineWins);
-        assertEquals("os trazidos da nuvem contam mais que os vistos aqui", 4, history.stats.distinctCharacters);
-        assertEquals(1, history.favorites.size());
-        assertEquals(7, history.favorites.get(0).characterId);
-        assertEquals(2, history.favorites.get(0).count);
-        assertEquals(1, history.recentGames.size());
-        assertEquals(LearningStore.Outcome.ENGINE_GUESSED, history.recentGames.get(0).outcome);
-        assertEquals(1000L, history.recentGames.get(0).timestamp);
-        assertTrue(store.popularityBoost(ACCOUNT, 7) > 1.0);
-        assertNotNull(store.blendedBelief(ACCOUNT, 7, "power_voo", 0.1));
-    }
-
-    @Test
-    public void fileWrittenWithObfuscatedFieldNames_isRewrittenWithTheRealNamesOnTheNextSave() throws Exception {
-        Files.write(file.toPath(), OBFUSCATED_FILE.getBytes(StandardCharsets.UTF_8));
-        LearningStore store = new LearningStore(() -> file, direct);
-        store.recordGame(ACCOUNT, 7, answers("power_voo", 1.0), LearningStore.Outcome.PICKED_FROM_ALTERNATIVES);
-
-        String saved = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
-        assertTrue(saved.contains("\"picksById\""));
-        assertFalse("não sobra o nome ofuscado", saved.contains("\"a\":"));
-
-        LearningStore.PlayerHistory reopened = new LearningStore(() -> file, direct).history(ACCOUNT, 5, 5);
-        assertEquals("as duas partidas do release mais a nova", 3, reopened.stats.gamesPlayed);
-        assertEquals(3, reopened.favorites.get(0).count);
-        assertEquals(LearningStore.Outcome.PICKED_FROM_ALTERNATIVES, reopened.recentGames.get(0).outcome);
+        cloud.actAs(other);
+        assertEquals(2, cloud.learningOf(account).gamesPlayed);
+        assertEquals(0, store.stats(other).gamesPlayed);
+        assertEquals(1.0, store.popularityBoost(other, 7), 1e-9);
+        assertNull(store.blendedBelief(other, 7, "power_voo", 0.1));
+        assertTrue(store.history(other, 5, 5).recentGames.isEmpty());
     }
 
     @Test
     public void reset_forgetsEverythingForTheAccount_butKeepsOthers() {
-        LearningStore store = new LearningStore(() -> file, direct);
-        store.recordGame(ACCOUNT, 7, answers("power_voo", 1.0), LearningStore.Outcome.ENGINE_GUESSED);
-        store.recordGame(OTHER, 8, answers(), LearningStore.Outcome.ENGINE_GUESSED);
+        LearningStore store = new LearningStore(cloud);
+        store.recordGame(account, 7, answers("power_voo", 1.0), LearningStore.Outcome.ENGINE_GUESSED);
+        cloud.actAs(other);
+        store.recordGame(other, 8, answers(), LearningStore.Outcome.ENGINE_GUESSED);
+        cloud.actAs(account);
 
-        store.reset(ACCOUNT);
+        store.reset(account);
 
-        assertEquals(1.0, store.popularityBoost(ACCOUNT, 7), 1e-9);
-        assertEquals(0, new LearningStore(() -> file, direct).stats(ACCOUNT).gamesPlayed);
-        assertEquals("outra conta não é tocada", 1,
-                new LearningStore(() -> file, direct).stats(OTHER).gamesPlayed);
+        assertEquals(1.0, store.popularityBoost(account, 7), 1e-9);
+        assertEquals(0, new LearningStore(cloud).stats(account).gamesPlayed);
+        assertTrue(store.history(account, 5, 5).recentGames.isEmpty());
+        assertEquals("outra conta não é tocada", 1, cloud.learningOf(other).gamesPlayed);
     }
 }

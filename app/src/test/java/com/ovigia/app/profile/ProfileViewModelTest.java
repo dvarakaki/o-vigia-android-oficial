@@ -3,6 +3,7 @@ package com.ovigia.app.profile;
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule;
 
 import com.ovigia.app.auth.AccountStore;
+import com.ovigia.app.cloud.FakeCloud;
 import com.ovigia.app.collection.CollectionStore;
 import com.ovigia.app.data.CharacterRepository;
 import com.ovigia.app.data.roster.RosterCatalog;
@@ -14,7 +15,6 @@ import com.ovigia.app.social.Achievement;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import java.io.StringReader;
 import java.util.ArrayList;
@@ -28,34 +28,31 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-/** Perfil montado a partir do aprendizado em disco temporário e de um elenco falso. */
+/** Perfil montado a partir da conta online falsa e de um elenco falso. */
 public class ProfileViewModelTest {
 
     @Rule
     public InstantTaskExecutorRule instantLiveData = new InstantTaskExecutorRule();
-
-    @Rule
-    public TemporaryFolder tmp = new TemporaryFolder();
 
     private final Executor direct = Runnable::run;
     private FakeRepository repository;
     private LearningStore learningStore;
     private AccountStore accountStore;
     private CollectionStore collectionStore;
-    private FakeProfileImages images;
+    private FakeCloud cloud;
 
     @Before
     public void setUp() {
         repository = new FakeRepository();
-        learningStore = new LearningStore(() -> tmp.getRoot().toPath().resolve("learning.json").toFile(), direct);
-        accountStore = new AccountStore(() -> tmp.getRoot().toPath().resolve("accounts.json").toFile(), 1_000);
-        collectionStore = new CollectionStore(() -> tmp.getRoot().toPath().resolve("collection.json").toFile());
-        images = new FakeProfileImages(tmp.getRoot());
+        cloud = new FakeCloud();
+        learningStore = new LearningStore(cloud);
+        accountStore = new AccountStore(cloud);
+        collectionStore = new CollectionStore(cloud);
         accountStore.signUp("Davi", "davi@exemplo.com", "segredo#1");
     }
 
     private ProfileViewModel newViewModel() {
-        return new ProfileViewModel(repository, learningStore, accountStore, collectionStore, images, direct, direct);
+        return new ProfileViewModel(repository, learningStore, accountStore, collectionStore, direct, direct);
     }
 
     @Test
@@ -63,16 +60,16 @@ public class ProfileViewModelTest {
         ProfileViewModel vm = newViewModel();
         vm.start();
         assertNull(vm.state().getValue().accountBio);
-        assertNull(vm.state().getValue().bannerFile);
+        assertNull(vm.state().getValue().banner);
 
-        accountStore.updateProfile("Davi A.", "Fã do Wolverine", "davi@exemplo.com", null);
-        accountStore.setImage(AccountStore.ImageKind.BANNER, "banner.jpg");
+        accountStore.updateProfile("Davi A.", "Fã do Wolverine");
+        accountStore.setImage(AccountStore.ImageKind.BANNER, "banner-base64");
         vm.reload();
 
         ProfileUiState state = vm.state().getValue();
         assertEquals("Davi A.", state.accountName);
         assertEquals("Fã do Wolverine", state.accountBio);
-        assertEquals(new java.io.File(tmp.getRoot(), "banner.jpg"), state.bannerFile);
+        assertEquals("banner-base64", state.banner);
     }
 
     @Test
@@ -101,7 +98,6 @@ public class ProfileViewModelTest {
     public void collection_isShownForTheSignedInAccount() {
         String id = accountStore.currentAccount().id;
         collectionStore.save(id, 2, "Personagem 2", "img-2");
-        collectionStore.save("outra-conta", 3, "Personagem 3", "img-3");
 
         ProfileViewModel vm = newViewModel();
         vm.start();
@@ -178,13 +174,12 @@ public class ProfileViewModelTest {
     public void achievementsAndUsername_areShownOnTheOwnProfile() {
         String id = accountStore.currentAccount().id;
         collectionStore.save(id, 1, "Avenger", "img-1");
-        accountStore.linkCloud(id, "uid-1", "davi@exemplo.com");
         accountStore.setUsername(id, "davi");
         learningStore.recordLoss(id);
         RosterCatalog roster = RosterCatalog.parse(new StringReader(
                 "{\"characters\":[{\"id\":1,\"teams\":[\"avengers\"],\"powers\":[\"voo\"],\"villain\":0.9}]}"));
 
-        ProfileViewModel vm = new ProfileViewModel(repository, learningStore, accountStore, collectionStore, images,
+        ProfileViewModel vm = new ProfileViewModel(repository, learningStore, accountStore, collectionStore,
                 () -> roster, direct, direct);
         vm.start();
 

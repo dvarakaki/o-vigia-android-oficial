@@ -12,6 +12,7 @@ import android.widget.EditText;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
@@ -20,6 +21,7 @@ import androidx.navigation.NavBackStackEntry;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.google.android.material.snackbar.Snackbar;
 import com.ovigia.app.AppContainer;
 import com.ovigia.app.OVigiaApplication;
 import com.ovigia.app.R;
@@ -28,6 +30,7 @@ import com.ovigia.app.auth.AuthUiState;
 import com.ovigia.app.auth.AuthViewModel;
 import com.ovigia.app.databinding.FragmentAuthBinding;
 import com.ovigia.app.ui.FadeNavOptions;
+import com.ovigia.app.ui.Motion;
 import com.ovigia.app.ui.SystemBarInsets;
 
 /**
@@ -49,6 +52,10 @@ public class AuthFragment extends Fragment {
 
     private FragmentAuthBinding binding;
     private AuthViewModel viewModel;
+    @Nullable private EmailFieldCheck emailCheck;
+    /** Estado cujo erro já foi mostrado. */
+    @Nullable private AuthUiState shownError;
+    private final Motion motion = new Motion();
     /** Modo mostrado na tela; {@code null} antes do primeiro render (que não anima). */
     @Nullable private AuthUiState.Mode shownMode;
 
@@ -64,8 +71,7 @@ public class AuthFragment extends Fragment {
 
         AppContainer container = ((OVigiaApplication) requireActivity().getApplication()).container();
         viewModel = new ViewModelProvider(this, new AuthViewModel.Factory(
-                container.accountStore, container.ioExecutor, container.socialExecutor, container.mainExecutor,
-                new OnlineAuth(container.socialRepository)))
+                container.accountStore, container.ioExecutor, container.mainExecutor))
                 .get(AuthViewModel.class);
 
         binding.btnBack.setOnClickListener(v -> nav().popBackStack());
@@ -73,11 +79,11 @@ public class AuthFragment extends Fragment {
         String reason = requireArguments().getString(ARG_REASON);
         binding.tvReason.setText(reason);
         binding.tvReason.setVisibility(reason != null ? View.VISIBLE : View.GONE);
+        emailCheck = new EmailFieldCheck(binding.emailLayout, binding.etEmail);
 
-        binding.modeToggle.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
-            if (!isChecked) return;
+        binding.modeSwitch.setOnModeChangeListener(mode -> {
             clearErrors();
-            viewModel.setMode(checkedId == R.id.btnModeSignUp ? AuthUiState.Mode.SIGN_UP : AuthUiState.Mode.SIGN_IN);
+            viewModel.setMode(mode);
         });
         binding.btnSubmit.setOnClickListener(v -> submit());
         binding.passwordStrength.attachTo(binding.etPassword);
@@ -106,6 +112,9 @@ public class AuthFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
+        if (emailCheck != null) emailCheck.cancel();
+        emailCheck = null;
+        motion.cancelAll();
         super.onDestroyView();
         binding = null;
         shownMode = null;
@@ -126,12 +135,15 @@ public class AuthFragment extends Fragment {
 
     private void render(AuthUiState state) {
         boolean signUp = state.mode == AuthUiState.Mode.SIGN_UP;
-        binding.modeToggle.check(signUp ? R.id.btnModeSignUp : R.id.btnModeSignIn);
+        boolean modeChanged = shownMode != null && shownMode != state.mode;
+        binding.modeSwitch.setMode(state.mode, shownMode != null);
         binding.tvTitle.setText(signUp ? R.string.auth_title_sign_up : R.string.auth_title_sign_in);
-        if (shownMode != null && shownMode != state.mode) {
-            // Trocar entre entrar e criar conta: o nome e a verificação da senha abrem e fecham deslizando.
+        if (modeChanged) {
+            // Trocar entre entrar e criar conta: o título troca subindo, e o nome e a
+            // verificação da senha abrem e fecham deslizando.
+            motion.refresh(binding.tvTitle);
             TransitionManager.beginDelayedTransition((ViewGroup) binding.passwordStrength.getParent(),
-                    new AutoTransition().setDuration(220));
+                    new AutoTransition().setDuration(260));
         }
         shownMode = state.mode;
         binding.nameLayout.setVisibility(signUp ? View.VISIBLE : View.GONE);
@@ -142,11 +154,11 @@ public class AuthFragment extends Fragment {
                 : getString(signUp ? R.string.auth_submit_sign_up : R.string.auth_submit_sign_in));
         binding.btnSubmit.setEnabled(!state.loading);
         binding.progress.setVisibility(state.loading ? View.VISIBLE : View.GONE);
-        for (int i = 0; i < binding.modeToggle.getChildCount(); i++) {
-            binding.modeToggle.getChildAt(i).setEnabled(!state.loading);
-        }
+        binding.modeSwitch.setEnabled(!state.loading);
 
-        if (state.error != null) showError(state.error);
+        // Só o erro de uma tentativa nova: girar a tela não repete o aviso.
+        if (state.error != null && state != shownError) showError(state.error);
+        shownError = state;
     }
 
     private void showError(AccountStore.Error error) {
@@ -154,8 +166,11 @@ public class AuthFragment extends Fragment {
             case NAME_REQUIRED:
                 binding.nameLayout.setError(getString(R.string.auth_error_name_required));
                 break;
+            case NAME_TOO_LONG:
+                binding.nameLayout.setError(getString(R.string.edit_error_name_too_long));
+                break;
             case INVALID_EMAIL:
-                binding.emailLayout.setError(getString(R.string.auth_error_invalid_email));
+                if (emailCheck != null) emailCheck.flag();
                 break;
             case EMAIL_IN_USE:
                 binding.emailLayout.setError(getString(R.string.auth_error_email_in_use));
@@ -165,6 +180,18 @@ public class AuthFragment extends Fragment {
                 // O que falta treme na lista logo abaixo.
                 binding.passwordStrength.shakeMissing();
                 break;
+            case OFFLINE:
+                showProblem(R.string.auth_error_offline);
+                break;
+            case UNAVAILABLE:
+                showProblem(R.string.auth_error_unavailable);
+                break;
+            case TOO_MANY_ATTEMPTS:
+                showProblem(R.string.auth_error_too_many_attempts);
+                break;
+            case FAILED:
+                showProblem(R.string.auth_error_generic);
+                break;
             case WRONG_CREDENTIALS:
             default:
                 binding.passwordLayout.setError(getString(R.string.auth_error_wrong_credentials));
@@ -172,9 +199,14 @@ public class AuthFragment extends Fragment {
         }
     }
 
+    /** Problema que não é de nenhum campo (sem rede, servidor): um aviso na base da tela. */
+    private void showProblem(@StringRes int message) {
+        Snackbar.make(binding.getRoot(), message, Snackbar.LENGTH_LONG).show();
+    }
+
     private void clearErrors() {
         binding.nameLayout.setError(null);
-        binding.emailLayout.setError(null);
+        if (emailCheck != null) emailCheck.clearError();
         binding.passwordLayout.setError(null);
     }
 

@@ -129,8 +129,8 @@ public class GameViewModel extends ViewModel {
     private void onLoaded(List<CharacterProfile> profiles, Map<String, String> questionTextByKey) {
         profilesById.clear();
         for (CharacterProfile p : profiles) profilesById.put(p.id, p);
-        AccountStore.Account current = accountStore.currentAccount();
-        accountId = current == null ? null : current.id;
+        // Só o id, que vem da sessão sem tocar na rede: isto roda na main thread.
+        accountId = accountStore.currentAccountId();
         String scope = accountId;
         engine = new GameEngine(profiles, questionTextByKey,
                 id -> learningStore.popularityBoost(scope, id), random);

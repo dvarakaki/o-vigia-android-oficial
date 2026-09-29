@@ -24,9 +24,23 @@ public final class AtomicFiles {
             throw new IOException("Não foi possível criar " + parent);
         }
         File tmp = new File(parent, file.getName() + ".tmp");
-        Files.write(tmp.toPath(), content.getBytes(StandardCharsets.UTF_8));
-        Files.move(tmp.toPath(), file.toPath(),
-                StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        moveIntoPlace(tmp, file, content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Grava {@code bytes} em {@code tmp} e o põe no lugar de {@code target} com um
+     * rename atômico. Se algo falhar no meio, o temporário não fica para trás.
+     */
+    public static void moveIntoPlace(File tmp, File target, byte[] bytes) throws IOException {
+        try {
+            Files.write(tmp.toPath(), bytes);
+            Files.move(tmp.toPath(), target.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException | RuntimeException e) {
+            //noinspection ResultOfMethodCallIgnored
+            tmp.delete();
+            throw e;
+        }
     }
 
     private AtomicFiles() { }

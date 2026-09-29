@@ -23,7 +23,7 @@ import java.util.concurrent.Executor;
 import java.util.function.UnaryOperator;
 
 /**
- * Aba de amigos: conduz a conta até ficar online (senha → @usuario) e depois
+ * Aba de amigos: conduz a conta até ficar online (@usuario) e depois
  * cuida da busca, dos pedidos, da lista de amigos e das propostas de troca de
  * heróis. A rede roda no executor social; o estado só muda na main thread.
  */
@@ -68,26 +68,7 @@ public class FriendsViewModel extends ViewModel {
         socialExecutor.execute(this::loadBlocking);
     }
 
-    // ---------------------------------------------------------------- conectar
-
-    public void connect(String password) {
-        FriendsUiState current = state.getValue();
-        if (current.status != Status.NEEDS_CONNECTION || current.working) return;
-        if (password == null || password.isEmpty()) {
-            state.setValue(current.withError(SocialException.Error.WRONG_PASSWORD));
-            return;
-        }
-        state.setValue(current.withWorking(true));
-        socialExecutor.execute(() -> {
-            try {
-                repository.connect(password);
-                message(Message.CONNECTED);
-                loadBlocking();
-            } catch (SocialException e) {
-                post(s -> s.withError(e.error));
-            }
-        });
-    }
+    // ---------------------------------------------------------------- @usuario
 
     public void claimUsername(String raw) {
         FriendsUiState current = state.getValue();
@@ -102,8 +83,9 @@ public class FriendsViewModel extends ViewModel {
                 repository.claimUsername(raw);
                 message(Message.USERNAME_SAVED);
                 loadBlocking();
-            } catch (SocialException e) {
-                post(s -> s.withError(e.error));
+            } catch (SocialException | RuntimeException e) {
+                SocialException.Error error = SocialException.errorOf(e);
+                post(s -> s.withError(error));
             }
         });
     }
@@ -123,8 +105,9 @@ public class FriendsViewModel extends ViewModel {
                 UserCard card = repository.findByUsername(raw);
                 post(s -> s.withSearch(new Search(false, card,
                         s.me == null ? FriendsHub.Relationship.NONE : s.hub.relationshipWith(s.me.uid, card.uid), null)));
-            } catch (SocialException e) {
-                post(s -> s.withSearch(new Search(false, null, null, e.error)));
+            } catch (SocialException | RuntimeException e) {
+                SocialException.Error error = SocialException.errorOf(e);
+                post(s -> s.withSearch(new Search(false, null, null, error)));
             }
         });
     }
@@ -177,6 +160,9 @@ public class FriendsViewModel extends ViewModel {
                 choices = repository.tradeChoices(target);
             } catch (SocialException e) {
                 choices = null;
+            } catch (RuntimeException e) {
+                Log.e(TAG, "Falha inesperada ao abrir a proposta", e);
+                choices = null;
             }
             List<TradeSuggestions.Pick> picks = choices == null ? Collections.emptyList() : choices.picks;
             boolean partial = choices == null || choices.partial;
@@ -215,11 +201,12 @@ public class FriendsViewModel extends ViewModel {
         socialExecutor.execute(() -> {
             try {
                 repository.acceptTrade(trade, chosen.hero);
-            } catch (SocialException e) {
+            } catch (SocialException | RuntimeException e) {
+                SocialException.Error error = SocialException.errorOf(e);
                 post(s -> s.withBusy(trade.id, false)
                         .withReview(s.review == null ? null : s.review.withAccepting(false)));
-                message(tradeFailure(e.error));
-                if (e.error == SocialException.Error.NOT_FOUND) refreshHubBlocking(trade.id);
+                message(tradeFailure(error));
+                if (error == SocialException.Error.NOT_FOUND) refreshHubBlocking(trade.id);
                 return;
             }
             List<HeroReceived> received = Collections.singletonList(new HeroReceived(chosen.hero, trade.from));
@@ -277,12 +264,13 @@ public class FriendsViewModel extends ViewModel {
         socialExecutor.execute(() -> {
             try {
                 action.run();
-            } catch (SocialException e) {
+            } catch (SocialException | RuntimeException e) {
+                SocialException.Error error = SocialException.errorOf(e);
                 post(s -> s.withBusy(uid, false));
-                if (e.error == SocialException.Error.NOT_CONNECTED) {
+                if (error == SocialException.Error.NOT_CONNECTED) {
                     loadBlocking();
                 } else {
-                    message(tradeFailure(e.error));
+                    message(tradeFailure(error));
                 }
                 return;
             }
@@ -299,6 +287,9 @@ public class FriendsViewModel extends ViewModel {
             announceCompleted(hub);
         } catch (SocialException e) {
             // A ação valeu; só a lista não atualizou. O próximo "atualizar" resolve.
+            post(s -> s.withBusy(busyKey, false));
+        } catch (RuntimeException e) {
+            Log.e(TAG, "Falha inesperada ao atualizar os amigos", e);
             post(s -> s.withBusy(busyKey, false));
         }
     }
@@ -328,15 +319,7 @@ public class FriendsViewModel extends ViewModel {
     }
 
     private void load() {
-        SocialRepository.Session session;
-        try {
-            // Um login sem rede deixou a conexão pela metade: termina agora, sem pedir a senha de novo.
-            session = repository.resumePending();
-        } catch (SocialException e) {
-            // Ainda sem rede: a tela é "sem conexão, tentar de novo", não a da senha.
-            mainExecutor.execute(() -> showLoadFailure(e.error, null));
-            return;
-        }
+        SocialRepository.Session session = repository.session();
         if (session.status != SocialRepository.Status.READY) {
             String suggestion = session.account == null ? "" : Username.suggestFrom(session.account.name);
             post(s -> s.withStatus(statusFor(session.status)).withMe(null).withSuggestion(suggestion)
@@ -373,7 +356,6 @@ public class FriendsViewModel extends ViewModel {
         switch (status) {
             case NOT_CONFIGURED: return Status.NOT_CONFIGURED;
             case SIGNED_OUT: return Status.SIGNED_OUT;
-            case NEEDS_CONNECTION: return Status.NEEDS_CONNECTION;
             case NEEDS_USERNAME: return Status.NEEDS_USERNAME;
             case READY:
             default: return Status.READY;

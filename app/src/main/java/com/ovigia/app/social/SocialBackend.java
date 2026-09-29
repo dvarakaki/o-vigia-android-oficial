@@ -5,8 +5,9 @@ import androidx.annotation.Nullable;
 import java.util.List;
 
 /**
- * Servidor dos amigos online. A implementação real é o
- * {@link FirebaseSocialBackend}; os testes usam um falso em memória.
+ * Servidor dos amigos online, para a conta com sessão aberta (o login é do
+ * {@code PlayerBackend}). A implementação real é o {@link FirebaseSocialBackend};
+ * os testes usam um falso em memória.
  *
  * Todas as operações são bloqueantes (rede): chamar fora da main thread.
  */
@@ -14,18 +15,6 @@ public interface SocialBackend {
 
     /** Se o app tem um servidor para falar. Rápido: pode ser chamado em qualquer thread. */
     boolean isConfigured();
-
-    /** Conta online com sessão aberta neste aparelho, ou {@code null}. */
-    @Nullable
-    String signedInUid();
-
-    /**
-     * Abre a sessão online com e-mail e senha e devolve o uid. Com
-     * {@code createIfMissing}, cria a conta online quando o e-mail ainda não tem uma.
-     */
-    String signIn(String email, String password, boolean createIfMissing) throws SocialException;
-
-    void signOut();
 
     /** Cartão de uma conta, ou {@code null} se ela ainda não escolheu @usuario. */
     @Nullable
@@ -73,10 +62,4 @@ public interface SocialBackend {
 
     /** Perfil completo de um amigo (ou da própria conta). */
     PublicProfile loadProfile(String uid) throws SocialException;
-
-    /** Troca a senha da conta online, confirmando a atual. */
-    void changePassword(String email, String currentPassword, String newPassword) throws SocialException;
-
-    /** Apaga amizades, pedidos, trocas, perfil, @usuario e a conta online. */
-    void deleteAccount(String email, String password) throws SocialException;
 }

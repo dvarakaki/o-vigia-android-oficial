@@ -23,7 +23,9 @@ public interface CharacterRepository {
         /** Resposta inesperada do servidor. */
         SERVER_ERROR,
         /** A API respondeu, mas nenhum personagem utilizável veio. */
-        EMPTY_ROSTER
+        EMPTY_ROSTER,
+        /** A Comic Vine não tem o personagem pedido (status 101, na ficha de um herói). */
+        NOT_FOUND
     }
 
     /** Chamado sempre na main thread. */

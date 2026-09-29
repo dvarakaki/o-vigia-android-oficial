@@ -50,7 +50,7 @@ final class CharacterDiskCache {
     /** Devolve o elenco salvo só se ainda estiver dentro da validade. */
     List<Character> readFresh() {
         File file = fileSupplier.get();
-        if (!file.exists() || isExpired(file)) return null;
+        if (!file.exists() || ComicVineResponses.isExpired(file, TTL_MILLIS)) return null;
         return readStale();
     }
 
@@ -60,9 +60,5 @@ final class CharacterDiskCache {
         } catch (IOException e) {
             Log.w(TAG, "Falha ao salvar cache em disco", e);
         }
-    }
-
-    private static boolean isExpired(File file) {
-        return System.currentTimeMillis() - file.lastModified() > TTL_MILLIS;
     }
 }

@@ -43,6 +43,7 @@ import com.ovigia.app.social.UserCard;
 import com.ovigia.app.social.Username;
 import com.ovigia.app.ui.FadeNavOptions;
 import com.ovigia.app.ui.Motion;
+import com.ovigia.app.ui.PlayerImages;
 import com.ovigia.app.ui.SystemBarInsets;
 import com.ovigia.app.ui.auth.AuthFragment;
 import com.ovigia.app.ui.catalog.HeroDetailFragment;
@@ -85,7 +86,6 @@ public class FriendsFragment extends Fragment {
         binding.btnBack.setOnClickListener(v -> nav().popBackStack());
         binding.btnRefresh.setOnClickListener(v -> viewModel.refresh());
         binding.btnGate.setOnClickListener(v -> submitGate());
-        binding.etPassword.setOnEditorActionListener((v, actionId, event) -> onDone(actionId, this::submitGate));
         binding.etUsername.setOnEditorActionListener((v, actionId, event) -> onDone(actionId, this::submitGate));
         binding.searchLayout.setEndIconOnClickListener(v -> submitSearch());
         binding.etSearch.setOnEditorActionListener((v, actionId, event) -> {
@@ -136,10 +136,6 @@ public class FriendsFragment extends Fragment {
         FriendsUiState state = viewModel.state().getValue();
         if (state == null) return;
         switch (state.status) {
-            case NEEDS_CONNECTION:
-                hideKeyboard();
-                viewModel.connect(text(binding.etPassword));
-                break;
             case NEEDS_USERNAME:
                 hideKeyboard();
                 viewModel.claimUsername(text(binding.etUsername));
@@ -196,16 +192,13 @@ public class FriendsFragment extends Fragment {
     }
 
     private void renderGate(FriendsUiState state, boolean stepChanged) {
-        boolean connection = state.status == Status.NEEDS_CONNECTION;
         boolean username = state.status == Status.NEEDS_USERNAME;
-        binding.passwordLayout.setVisibility(connection ? View.VISIBLE : View.GONE);
         binding.usernameLayout.setVisibility(username ? View.VISIBLE : View.GONE);
-        binding.tvGateNote.setVisibility(connection || username ? View.VISIBLE : View.GONE);
+        binding.tvGateNote.setVisibility(username ? View.VISIBLE : View.GONE);
         binding.btnGate.setVisibility(state.status == Status.NOT_CONFIGURED ? View.GONE : View.VISIBLE);
         binding.btnGate.setEnabled(!state.working);
         binding.btnGate.setText(state.working ? null : getString(gateAction(state.status)));
         binding.gateProgress.setVisibility(state.working ? View.VISIBLE : View.GONE);
-        binding.passwordLayout.setEnabled(!state.working);
         binding.usernameLayout.setEnabled(!state.working);
 
         switch (state.status) {
@@ -213,11 +206,6 @@ public class FriendsFragment extends Fragment {
                 binding.imageGate.setImageResource(R.drawable.ic_group);
                 binding.tvGateTitle.setText(R.string.friends_not_configured_title);
                 binding.tvGateBody.setText(R.string.friends_not_configured_body);
-                break;
-            case NEEDS_CONNECTION:
-                binding.imageGate.setImageResource(R.drawable.ic_group);
-                binding.tvGateTitle.setText(R.string.friends_connect_title);
-                binding.tvGateBody.setText(R.string.friends_connect_body);
                 break;
             case NEEDS_USERNAME:
                 binding.imageGate.setImageResource(R.drawable.ic_at);
@@ -236,13 +224,9 @@ public class FriendsFragment extends Fragment {
         }
 
         // Erros de formulário: no campo quando dá, senão embaixo do cartão.
-        binding.passwordLayout.setError(null);
         binding.usernameLayout.setError(null);
         String formError = state.status == Status.ERROR || state.error == null ? null : formErrorText(state);
-        if (formError != null && connection && state.error == SocialException.Error.WRONG_PASSWORD) {
-            binding.passwordLayout.setError(formError);
-            formError = null;
-        } else if (formError != null && username && (state.error == SocialException.Error.USERNAME_INVALID
+        if (formError != null && username && (state.error == SocialException.Error.USERNAME_INVALID
                 || state.error == SocialException.Error.USERNAME_TAKEN)) {
             binding.usernameLayout.setError(formError);
             formError = null;
@@ -256,7 +240,6 @@ public class FriendsFragment extends Fragment {
     @StringRes
     private static int gateAction(Status status) {
         switch (status) {
-            case NEEDS_CONNECTION: return R.string.friends_connect_action;
             case NEEDS_USERNAME: return R.string.friends_username_action;
             case ERROR:
             default: return R.string.btn_retry;
@@ -278,7 +261,6 @@ public class FriendsFragment extends Fragment {
         if (error == null) return R.string.friends_error_generic;
         switch (error) {
             case OFFLINE: return R.string.friends_error_offline;
-            case WRONG_PASSWORD: return R.string.friends_error_wrong_password;
             case USERNAME_TAKEN: return R.string.friends_username_taken;
             case USERNAME_INVALID: return R.string.friends_username_invalid;
             case NOT_CONFIGURED: return R.string.friends_not_configured_body;
@@ -292,7 +274,7 @@ public class FriendsFragment extends Fragment {
             binding.tvMeUsername.setText(getString(R.string.friends_username_format, me.username));
             binding.tvMeName.setText(me.name);
             binding.meCard.setContentDescription(getString(R.string.friends_cd_me, me.username));
-            SharedImages.bindAvatar(this, binding.imageMe, me.avatar,
+            PlayerImages.bindSharedAvatar(this, binding.imageMe, me.avatar,
                     getResources().getDimensionPixelSize(R.dimen.avatar_me_icon_padding));
         }
 
@@ -387,7 +369,7 @@ public class FriendsFragment extends Fragment {
 
     /** Foto do amigo e as duas miniaturas (o que o jogador dá ⇄ o que recebe); esconde as ações. */
     private void bindTradeRow(ItemTradeRowBinding row, TradeOffer trade, String myUid, FriendsUiState state) {
-        SharedImages.bindAvatar(this, row.imageAvatar, trade.partnerOf(myUid).avatar, rowIconPadding);
+        PlayerImages.bindSharedAvatar(this, row.imageAvatar, trade.partnerOf(myUid).avatar, rowIconPadding);
         bindThumb(row.imageGive, trade.heroFrom(myUid));
         bindThumb(row.imageGet, trade.heroFor(myUid));
         boolean busy = state.busyUids.contains(trade.id);
@@ -550,7 +532,7 @@ public class FriendsFragment extends Fragment {
     private void bindRow(ItemFriendRowBinding row, UserCard card, FriendsUiState state) {
         row.tvName.setText(card.name);
         row.tvDetail.setText(getString(R.string.friends_username_format, card.username));
-        SharedImages.bindAvatar(this, row.imageAvatar, card.avatar, rowIconPadding);
+        PlayerImages.bindSharedAvatar(this, row.imageAvatar, card.avatar, rowIconPadding);
         boolean busy = state.busyUids.contains(card.uid);
         row.rowProgress.setVisibility(busy ? View.VISIBLE : View.GONE);
         row.btnAction.setVisibility(View.GONE);
@@ -608,7 +590,6 @@ public class FriendsFragment extends Fragment {
             case REQUEST_DECLINED: return R.string.friends_message_declined;
             case REQUEST_CANCELED: return R.string.friends_message_canceled;
             case USERNAME_SAVED: return R.string.friends_message_username_saved;
-            case CONNECTED: return R.string.friends_message_connected;
             case TRADE_DECLINED: return R.string.trade_message_declined;
             case TRADE_CANCELED: return R.string.trade_message_canceled;
             case TRADE_INVALID: return R.string.trade_message_invalid;

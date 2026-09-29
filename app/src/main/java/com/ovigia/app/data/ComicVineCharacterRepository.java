@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.ovigia.app.api.ApiClient;
 import com.ovigia.app.api.ComicVineService;
+import com.ovigia.app.data.ComicVineResponses.Failure;
 import com.ovigia.app.data.roster.RosterCatalog;
 import com.ovigia.app.engine.CharacterProfile;
 import com.ovigia.app.engine.GameEngine;
@@ -42,11 +43,6 @@ import retrofit2.Response;
 public final class ComicVineCharacterRepository implements CharacterRepository {
 
     private static final String TAG = "CharacterRepository";
-
-    /** Status do corpo de resposta da Comic Vine (independente do HTTP). */
-    private static final int CV_STATUS_OK = 1;
-    private static final int CV_STATUS_INVALID_KEY = 100;
-    private static final int CV_STATUS_RATE_LIMIT = 107;
 
     /** Carrega o catálogo curado (normalmente de {@code assets/roster.json}). */
     public interface RosterSource {
@@ -94,7 +90,8 @@ public final class ComicVineCharacterRepository implements CharacterRepository {
     public void loadCharacters(Callback callback) {
         ioExecutor.execute(() -> {
             try {
-                learningStore.ensureLoaded();
+                String accountId = currentAccountId.get();
+                learningStore.ensureLoaded(accountId);
                 Map<String, String> texts = questionTexts.get();
                 if (cachedRawProfiles == null) {
                     buildRawProfiles(texts);
@@ -104,16 +101,15 @@ public final class ComicVineCharacterRepository implements CharacterRepository {
                     String text = texts.get(key);
                     if (text != null) questions.put(key, text);
                 }
-                String accountId = currentAccountId.get();
                 List<CharacterProfile> profiles = applyLearning(cachedRawProfiles, questions, accountId);
                 mainExecutor.execute(() -> callback.onSuccess(profiles, Collections.unmodifiableMap(questions)));
-            } catch (LoadException e) {
+            } catch (Failure e) {
                 mainExecutor.execute(() -> callback.onError(e.error));
             }
         });
     }
 
-    private synchronized void buildRawProfiles(Map<String, String> texts) throws LoadException {
+    private synchronized void buildRawProfiles(Map<String, String> texts) throws Failure {
         if (cachedRawProfiles != null) return;
 
         RosterCatalog roster;
@@ -121,16 +117,16 @@ public final class ComicVineCharacterRepository implements CharacterRepository {
             roster = rosterSource.load();
         } catch (IOException | RuntimeException e) {
             Log.e(TAG, "roster.json ilegível", e);
-            throw new LoadException(LoadError.EMPTY_ROSTER);
+            throw new Failure(LoadError.EMPTY_ROSTER);
         }
 
         List<Character> characters = diskCache.readFresh();
         if (characters == null) {
             try {
-                if (!apiConfigured) throw new LoadException(LoadError.NOT_CONFIGURED);
+                if (!apiConfigured) throw new Failure(LoadError.NOT_CONFIGURED);
                 characters = fetchAll(roster);
                 diskCache.write(characters);
-            } catch (LoadException e) {
+            } catch (Failure e) {
                 characters = diskCache.readStale();
                 if (characters == null) throw e;
                 Log.i(TAG, "Rede indisponível (" + e.error + "); usando cache vencido");
@@ -145,7 +141,7 @@ public final class ComicVineCharacterRepository implements CharacterRepository {
             if (c.image == null || c.image.bestForHero() == null) continue;
             profiles.add(mapper.toProfile(c, questionTextByKey));
         }
-        if (profiles.isEmpty()) throw new LoadException(LoadError.EMPTY_ROSTER);
+        if (profiles.isEmpty()) throw new Failure(LoadError.EMPTY_ROSTER);
 
         cachedQuestionKeys = Collections.unmodifiableList(new ArrayList<>(questionTextByKey.keySet()));
         cachedRawProfiles = Collections.unmodifiableList(profiles);
@@ -155,7 +151,7 @@ public final class ComicVineCharacterRepository implements CharacterRepository {
      * Busca todo o elenco, paginando: a Comic Vine devolve no máximo 100
      * resultados por página. Chamada síncrona — só no executor de I/O.
      */
-    private List<Character> fetchAll(RosterCatalog roster) throws LoadException {
+    private List<Character> fetchAll(RosterCatalog roster) throws Failure {
         Map<Integer, Character> byId = new LinkedHashMap<>();
         String filter = "id:" + roster.idFilter();
         int offset = 0;
@@ -165,25 +161,21 @@ public final class ComicVineCharacterRepository implements CharacterRepository {
                 response = service.listCharacters(apiKey, ApiClient.FORMAT, ApiClient.PAGE_SIZE,
                         offset, filter, ApiClient.GAME_FIELDS).execute();
             } catch (IOException e) {
-                throw new LoadException(LoadError.NO_CONNECTION);
+                throw new Failure(LoadError.NO_CONNECTION);
+            } catch (RuntimeException e) {
+                // JSON inesperado, por exemplo. Solta no executor de I/O, derrubaria o app.
+                Log.w(TAG, "Resposta ilegível", e);
+                throw new Failure(LoadError.SERVER_ERROR);
             }
 
-            int http = response.code();
-            if (http == 420 || http == 429) throw new LoadException(LoadError.RATE_LIMITED);
-            if (http == 401 || http == 403) throw new LoadException(LoadError.NOT_CONFIGURED);
-            ComicVineResponse<List<Character>> body = response.body();
-            if (!response.isSuccessful() || body == null) throw new LoadException(LoadError.SERVER_ERROR);
-            if (body.statusCode == CV_STATUS_INVALID_KEY) throw new LoadException(LoadError.NOT_CONFIGURED);
-            if (body.statusCode == CV_STATUS_RATE_LIMIT) throw new LoadException(LoadError.RATE_LIMITED);
-            if (body.statusCode != CV_STATUS_OK || body.results == null) {
-                throw new LoadException(LoadError.SERVER_ERROR);
-            }
+            ComicVineResponse<List<Character>> body = ComicVineResponses.body(response);
+            List<Character> results = ComicVineResponses.results(body);
 
-            for (Character c : body.results) byId.put(c.id, c);
+            for (Character c : results) byId.put(c.id, c);
             offset += ApiClient.PAGE_SIZE;
-            if (body.results.isEmpty() || offset >= body.numberOfTotalResults) break;
+            if (results.isEmpty() || offset >= body.numberOfTotalResults) break;
         }
-        if (byId.isEmpty()) throw new LoadException(LoadError.EMPTY_ROSTER);
+        if (byId.isEmpty()) throw new Failure(LoadError.EMPTY_ROSTER);
         return new ArrayList<>(byId.values());
     }
 
@@ -209,14 +201,5 @@ public final class ComicVineCharacterRepository implements CharacterRepository {
             adjusted.add(p.withAttributes(attrs));
         }
         return adjusted;
-    }
-
-    private static final class LoadException extends Exception {
-        final LoadError error;
-
-        LoadException(LoadError error) {
-            super(error.name(), null, false, false);
-            this.error = error;
-        }
     }
 }

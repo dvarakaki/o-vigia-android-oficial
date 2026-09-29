@@ -58,7 +58,7 @@
     <string name="profile_catalog_more" translatable="false">+%1$d</string>
     <string name="profile_sign_out">Sair da conta</string>
     <string name="profile_sign_out_confirm_title">Sair da conta?</string>
-    <string name="profile_sign_out_confirm_message">Sua coleção, suas conquistas e seu progresso continuam salvos neste aparelho. Para voltar, é só entrar de novo.</string>
+    <string name="profile_sign_out_confirm_message">Sua coleção, suas conquistas e seu progresso ficam salvos na sua conta. Para voltar, é só entrar de novo — neste ou em qualquer aparelho.</string>
     <string name="profile_signed_out_message">Você saiu da sua conta.</string>
 
     <!-- Amigos -->
@@ -68,10 +68,6 @@
     <string name="friends_username_format" translatable="false">\@%1$s</string>
     <string name="friends_not_configured_title">Amigos indisponíveis</string>
     <string name="friends_not_configured_body">Esta versão do app não tem servidor de amigos configurado.</string>
-    <string name="friends_connect_title">Jogue com seus amigos</string>
-    <string name="friends_connect_body">Conecte sua conta para adicionar amigos, ver o perfil deles, os heróis que já desbloquearam e as conquistas.</string>
-    <string name="friends_hint_password">Senha da sua conta</string>
-    <string name="friends_connect_action">Conectar conta</string>
     <string name="friends_privacy_note">Seus amigos veem seu nome, @usuário, foto, banner, bio, números, heróis e conquistas. Seu e-mail nunca aparece.</string>
     <string name="friends_username_title">Escolha seu @usuário</string>
     <string name="friends_username_body">É com ele que seus amigos vão te encontrar.</string>
@@ -84,7 +80,6 @@
     <string name="friends_username_too_long">O @usuário pode ter no máximo 20 caracteres.</string>
     <string name="friends_error_title">Não foi possível carregar</string>
     <string name="friends_error_offline">Sem conexão com a internet.</string>
-    <string name="friends_error_wrong_password">Senha incorreta.</string>
     <string name="friends_error_generic">Algo deu errado. Tente de novo.</string>
     <string name="friends_me_label">Você é</string>
     <string name="friends_cd_me">Seu @usuário é %1$s</string>
@@ -112,7 +107,6 @@
     <string name="friends_message_declined">Pedido recusado.</string>
     <string name="friends_message_canceled">Pedido cancelado.</string>
     <string name="friends_message_username_saved">\@usuário salvo.</string>
-    <string name="friends_message_connected">Conta conectada.</string>
 
     <!-- Perfil de um amigo -->
     <string name="friend_profile_updated">Atualizado %1$s</string>
@@ -242,6 +236,11 @@
     <string name="auth_reason_unlock">Entre para desbloquear %1$s no seu catálogo.</string>
     <string name="auth_error_name_required">Informe seu nome.</string>
     <string name="auth_error_invalid_email">Informe um e-mail válido.</string>
+    <string name="auth_error_generic">Não foi possível entrar agora. Tente de novo.</string>
+    <string name="auth_error_too_many_attempts">Muitas tentativas seguidas. Espere um pouco e tente de novo.</string>
+    <string name="auth_error_unavailable">Contas indisponíveis nesta versão do app.</string>
+    <string name="auth_error_offline">Sem conexão com a internet. Entrar e criar conta precisam dela.</string>
+    <string name="auth_email_valid_cd">E-mail válido</string>
     <string name="auth_error_email_in_use">Já existe uma conta com esse e-mail.</string>
     <string name="auth_error_weak_password">A senha precisa ter pelo menos 8 caracteres e um caractere especial.</string>
     <string name="password_rule_length">Pelo menos %1$d caracteres</string>
@@ -382,7 +381,7 @@
     <string name="edit_save_profile">Salvar alterações</string>
     <string name="edit_change_password">Alterar senha</string>
     <string name="edit_delete_account">Excluir conta</string>
-    <string name="edit_delete_explanation">Excluir a conta apaga sua coleção, sua foto e seu banner deste aparelho e, se ela estiver conectada aos amigos, também a conta online. As estatísticas de partidas continuam.</string>
+    <string name="edit_delete_explanation">Excluir a conta apaga tudo dela: coleção, histórico, o que o Vigia aprendeu, foto, banner, amigos e trocas. Não dá para desfazer.</string>
     <string name="edit_delete_confirm_title">Excluir sua conta?</string>
     <string name="edit_delete_confirm_message">Isso não pode ser desfeito. Digite sua senha para confirmar.</string>
     <string name="edit_photo_options_title">Foto do perfil</string>
@@ -390,6 +389,7 @@
     <string name="edit_option_choose_image">Escolher da galeria</string>
     <string name="edit_option_remove_image">Remover</string>
     <string name="edit_saved">Perfil atualizado.</string>
+    <string name="edit_email_change_sent">Enviamos um link para %1$s. O e-mail muda quando você confirmar por lá.</string>
     <string name="edit_password_changed">Senha alterada.</string>
     <string name="edit_image_updated">Imagem atualizada.</string>
     <string name="edit_image_removed">Imagem removida.</string>
@@ -398,7 +398,7 @@
     <string name="edit_error_name_too_long">O nome pode ter no máximo 40 caracteres.</string>
     <string name="edit_error_bio_too_long">A bio pode ter no máximo 120 caracteres.</string>
     <string name="edit_error_wrong_password">Senha atual incorreta.</string>
-    <string name="edit_error_delete_online_unavailable">Sem conexão. Conecte-se à internet para excluir também sua conta de amigos online.</string>
+    <string name="edit_error_offline">Sem conexão com a internet. Tente de novo.</string>
 
     <!-- Títulos do jogador -->
     <string name="rank_newcomer">Recém-chegado</string>
@@ -464,6 +464,7 @@
     <string name="error_not_configured">A chave da Comic Vine não está configurada ou foi recusada.</string>
     <string name="error_server">Não foi possível carregar os personagens.</string>
     <string name="error_empty_roster">Nenhum personagem válido foi encontrado.</string>
+    <string name="error_hero_not_found">A Comic Vine não tem a ficha deste herói.</string>
 
     <!-- Chute -->
     <string name="answer_intro">Eu acho que:</string>

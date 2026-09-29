@@ -37,6 +37,7 @@ import com.ovigia.app.profile.EditProfileUiState.Busy;
 import com.ovigia.app.profile.EditProfileUiState.Status;
 import com.ovigia.app.profile.EditProfileViewModel;
 import com.ovigia.app.ui.ConfirmDialog;
+import com.ovigia.app.ui.PlayerImages;
 import com.ovigia.app.ui.SystemBarInsets;
 import com.ovigia.app.ui.home.HomeFragment;
 
@@ -87,10 +88,10 @@ public class EditProfileFragment extends Fragment {
 
         AppContainer container = ((OVigiaApplication) requireActivity().getApplication()).container();
         viewModel = new ViewModelProvider(this, new EditProfileViewModel.Factory(
-                container.accountStore, container.collectionStore, container.learningStore,
-                container.achievementsStore, container.profileImages,
-                new OnlineProfile(container.socialRepository, container.socialExecutor),
-                container.socialExecutor, container.ioExecutor, container.mainExecutor))
+                container.accountStore, container.profileImages,
+                // Nome, bio, foto e banner aparecem para os amigos: o perfil público acompanha.
+                container.socialRepository::publishQuietly,
+                container.ioExecutor, container.mainExecutor))
                 .get(EditProfileViewModel.class);
 
         binding.btnBack.setOnClickListener(v -> nav().popBackStack());
@@ -158,8 +159,8 @@ public class EditProfileFragment extends Fragment {
         if (loading) return;
 
         if (!fieldsFilled) fillFields(state);
-        ProfileImageBinder.bindBanner(this, binding.imageBanner, binding.bannerTint, state.bannerFile);
-        ProfileImageBinder.bindAvatar(this, binding.imageAvatar, state.avatarFile);
+        PlayerImages.bindBanner(this, binding.imageBanner, binding.bannerTint, state.banner);
+        PlayerImages.bindAvatar(this, binding.imageAvatar, state.avatar);
 
         boolean busy = state.isBusy();
         binding.imageProgress.setVisibility(state.busy == Busy.IMAGE ? View.VISIBLE : View.INVISIBLE);
@@ -208,6 +209,16 @@ public class EditProfileFragment extends Fragment {
                 // Mostra o que foi gravado (nome e e-mail normalizados).
                 if (lastState != null) fillFields(lastState);
                 break;
+            case EMAIL_CHANGE_SENT: {
+                // O e-mail só muda quando o jogador confirmar pelo link: o campo volta ao atual.
+                String newEmail = text(binding.etEmail).trim();
+                if (lastState != null) fillFields(lastState);
+                markProfileChanged();
+                hideKeyboard();
+                Snackbar.make(binding.getRoot(), getString(R.string.edit_email_change_sent, newEmail),
+                        Snackbar.LENGTH_LONG).show();
+                return;
+            }
             case PASSWORD_CHANGED:
                 text = R.string.edit_password_changed;
                 binding.etCurrentPassword.setText(null);
@@ -252,7 +263,7 @@ public class EditProfileFragment extends Fragment {
     /** Sem imagem: abre direto o seletor. Com imagem: oferece trocar ou remover. */
     private void chooseImage(ImageKind kind) {
         if (lastState == null || lastState.isBusy()) return;
-        boolean hasImage = kind == ImageKind.AVATAR ? lastState.avatarFile != null : lastState.bannerFile != null;
+        boolean hasImage = kind == ImageKind.AVATAR ? lastState.avatar != null : lastState.banner != null;
         if (!hasImage) {
             launchPicker(kind);
             return;
@@ -341,7 +352,10 @@ public class EditProfileFragment extends Fragment {
             case INVALID_EMAIL: return getString(R.string.auth_error_invalid_email);
             case EMAIL_IN_USE: return getString(R.string.auth_error_email_in_use);
             case WEAK_PASSWORD: return getString(R.string.auth_error_weak_password);
-            case ONLINE_UNAVAILABLE: return getString(R.string.edit_error_delete_online_unavailable);
+            case OFFLINE: return getString(R.string.edit_error_offline);
+            case TOO_MANY_ATTEMPTS: return getString(R.string.auth_error_too_many_attempts);
+            case FAILED:
+            case UNAVAILABLE: return getString(R.string.auth_error_generic);
             case WRONG_PASSWORD:
             case WRONG_CREDENTIALS:
             case NOT_SIGNED_IN:

@@ -37,6 +37,7 @@ import com.ovigia.app.social.TradeSuggestions;
 import com.ovigia.app.ui.ConfirmDialog;
 import com.ovigia.app.ui.FadeNavOptions;
 import com.ovigia.app.ui.Motion;
+import com.ovigia.app.ui.PlayerImages;
 import com.ovigia.app.ui.RelativeTime;
 import com.ovigia.app.ui.SystemBarInsets;
 import com.ovigia.app.ui.achievements.AchievementViews;
@@ -196,8 +197,8 @@ public class FriendProfileFragment extends Fragment {
             binding.tvUpdated.setText(getString(R.string.friend_profile_updated,
                     RelativeTime.format(requireContext(), profile.updatedAt, System.currentTimeMillis())));
         }
-        SharedImages.bindBanner(this, binding.imageBanner, binding.bannerTint, profile.banner);
-        SharedImages.bindAvatar(this, binding.imageAvatar, profile.card.avatar,
+        PlayerImages.bindSharedBanner(this, binding.imageBanner, binding.bannerTint, profile.banner);
+        PlayerImages.bindSharedAvatar(this, binding.imageAvatar, profile.card.avatar,
                 getResources().getDimensionPixelSize(R.dimen.avatar_icon_padding));
 
         PlayerRank rank = state.rank();

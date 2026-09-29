@@ -1,28 +1,17 @@
 # Regras do R8 para o O Vigia.
 # AGP combina todos os arquivos de src/main/keepRules e entrega ao R8.
 
-# Modelos lidos/escritos via Gson por reflexão (API da Comic Vine, cache em disco,
-# roster.json e estado do aprendizado). Sem isso o R8 renomeia os campos e o JSON
-# deixa de casar.
+# Modelos lidos/escritos via Gson por reflexão (API da Comic Vine, caches em disco,
+# roster.json e preferências). Sem isso o R8 renomeia os campos e o JSON deixa de
+# casar — e troca Map/List por HashMap/ArrayList, o que apaga a assinatura genérica
+# (KeepRulesTest guarda isto). Os dados do jogador vão para o Firestore campo a campo
+# e os arquivos das versões antigas são lidos como árvore JSON: nada disso precisa de regra.
 -keep class com.ovigia.app.model.** { <fields>; <init>(); }
 -keep class com.ovigia.app.data.roster.RosterCatalog$Document { <fields>; <init>(); }
 -keep class com.ovigia.app.data.roster.RosterCatalog$Entry { <fields>; <init>(); }
--keep class com.ovigia.app.learning.LearningStore$State { <fields>; <init>(); }
-# Sem esta, o R8 renomeia os campos e troca Map/List por HashMap/ArrayList, o que apaga a
-# assinatura genérica: ao reabrir o app o Gson devolve Map<String, Double> no lugar de
-# Map<Integer, Integer> e o perfil estoura com ClassCastException (KeepRulesTest guarda isto).
--keep class com.ovigia.app.learning.LearningStore$PerAccountState { <fields>; <init>(); }
--keep class com.ovigia.app.learning.LearningStore$GameLogEntry { <fields>; <init>(); }
--keep class com.ovigia.app.learning.LearningStore$AnswerRecord { <fields>; <init>(); }
--keepclassmembers enum com.ovigia.app.learning.LearningStore$Outcome { *; }
--keep class com.ovigia.app.auth.AccountStore$State { <fields>; <init>(); }
--keep class com.ovigia.app.auth.AccountStore$StoredAccount { <fields>; <init>(); }
--keep class com.ovigia.app.collection.CollectionStore$State { <fields>; <init>(); }
--keep class com.ovigia.app.collection.CollectionStore$Entry { <fields>; <init>(); }
--keep class com.ovigia.app.social.AchievementsStore$State { <fields>; <init>(); }
--keep class com.ovigia.app.social.KeystoreCredentialVault$Sealed { <fields>; <init>(); }
 -keep class com.ovigia.app.settings.SettingsStore$State { <fields>; <init>(); }
 -keep class com.ovigia.app.translation.CachedHeroTranslationRepository$Cache { <fields>; <init>(); }
+-keepclassmembers enum com.ovigia.app.learning.LearningStore$Outcome { *; }
 
 # Gson: preservar assinaturas genéricas e anotações. No modo completo do R8 a
 # assinatura só sobrevive em classes mantidas — por isso as regras de TypeToken.

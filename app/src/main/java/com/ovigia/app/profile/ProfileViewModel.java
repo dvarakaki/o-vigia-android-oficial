@@ -41,7 +41,6 @@ public class ProfileViewModel extends ViewModel {
     private final LearningStore learningStore;
     private final AccountStore accountStore;
     private final CollectionStore collectionStore;
-    private final ProfileImages images;
     private final Supplier<RosterCatalog> roster;
     private final Executor ioExecutor;
     private final Executor mainExecutor;
@@ -50,20 +49,19 @@ public class ProfileViewModel extends ViewModel {
     private boolean started = false;
 
     public ProfileViewModel(CharacterRepository repository, LearningStore learningStore,
-                            AccountStore accountStore, CollectionStore collectionStore, ProfileImages images,
+                            AccountStore accountStore, CollectionStore collectionStore,
                             Executor ioExecutor, Executor mainExecutor) {
-        this(repository, learningStore, accountStore, collectionStore, images, () -> null, ioExecutor, mainExecutor);
+        this(repository, learningStore, accountStore, collectionStore, () -> null, ioExecutor, mainExecutor);
     }
 
     /** @param roster equipes e vilania para as conquistas; lido no I/O, pode devolver {@code null} */
     public ProfileViewModel(CharacterRepository repository, LearningStore learningStore,
-                            AccountStore accountStore, CollectionStore collectionStore, ProfileImages images,
+                            AccountStore accountStore, CollectionStore collectionStore,
                             Supplier<RosterCatalog> roster, Executor ioExecutor, Executor mainExecutor) {
         this.repository = repository;
         this.learningStore = learningStore;
         this.accountStore = accountStore;
         this.collectionStore = collectionStore;
-        this.images = images;
         this.roster = roster;
         this.ioExecutor = ioExecutor;
         this.mainExecutor = mainExecutor;
@@ -92,23 +90,15 @@ public class ProfileViewModel extends ViewModel {
                 return;
             }
             ProfileUiState.Identity identity = new ProfileUiState.Identity(account.name, account.email,
-                    account.username, account.bio, images.file(account.avatarFile), images.file(account.bannerFile));
+                    account.username, account.bio, account.avatar, account.banner);
             List<CollectionStore.Entry> collection = collectionStore.list(account.id);
             LearningStore.PlayerHistory history = learningStore.history(account.id, MAX_FAVORITES, MAX_RECENT_GAMES);
             List<Integer> heroIds = new ArrayList<>();
             for (CollectionStore.Entry e : collection) heroIds.add(e.characterId);
-            List<AchievementProgress> achievements = Achievements.evaluate(heroIds, rosterOrNull(),
-                    history.stats.gamesPlayed, history.stats.gamesPlayed - history.stats.engineWins);
+            List<AchievementProgress> achievements = Achievements.evaluate(heroIds, RosterCatalog.orNull(roster),
+                    history.stats);
             mainExecutor.execute(() -> onLocalData(identity, collection, history, achievements));
         });
-    }
-
-    private RosterCatalog rosterOrNull() {
-        try {
-            return roster.get();
-        } catch (RuntimeException e) {
-            return null;
-        }
     }
 
     public void signOut() {
@@ -174,19 +164,17 @@ public class ProfileViewModel extends ViewModel {
         private final LearningStore learningStore;
         private final AccountStore accountStore;
         private final CollectionStore collectionStore;
-        private final ProfileImages images;
         private final Supplier<RosterCatalog> roster;
         private final Executor ioExecutor;
         private final Executor mainExecutor;
 
         public Factory(CharacterRepository repository, LearningStore learningStore,
-                       AccountStore accountStore, CollectionStore collectionStore, ProfileImages images,
+                       AccountStore accountStore, CollectionStore collectionStore,
                        Supplier<RosterCatalog> roster, Executor ioExecutor, Executor mainExecutor) {
             this.repository = repository;
             this.learningStore = learningStore;
             this.accountStore = accountStore;
             this.collectionStore = collectionStore;
-            this.images = images;
             this.roster = roster;
             this.ioExecutor = ioExecutor;
             this.mainExecutor = mainExecutor;
@@ -196,7 +184,7 @@ public class ProfileViewModel extends ViewModel {
         @Override
         @SuppressWarnings("unchecked")
         public <T extends ViewModel> T create(@NonNull Class<T> modelClass) {
-            return (T) new ProfileViewModel(repository, learningStore, accountStore, collectionStore, images,
+            return (T) new ProfileViewModel(repository, learningStore, accountStore, collectionStore,
                     roster, ioExecutor, mainExecutor);
         }
     }

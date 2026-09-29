@@ -10,11 +10,10 @@ import androidx.annotation.Nullable;
 
 import com.ovigia.app.R;
 import com.ovigia.app.engine.CharacterProfile;
+import com.ovigia.app.util.SearchText;
 
-import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * O motor perdeu: o jogador conta em quem pensou. É a fonte de aprendizado mais
@@ -66,18 +65,12 @@ public class RevealFragment extends CharacterListFragment {
 
     private void applyFilter() {
         if (binding == null) return;
-        String query = normalize(String.valueOf(binding.etSearch.getText()));
+        String query = SearchText.fold(String.valueOf(binding.etSearch.getText()));
         List<CharacterProfile> filtered = new ArrayList<>();
         for (CharacterProfile c : all) {
-            if (query.isEmpty() || normalize(c.name).contains(query)) filtered.add(c);
+            if (query.isEmpty() || SearchText.fold(c.name).contains(query)) filtered.add(c);
         }
         show(filtered);
     }
 
-    /** Minúsculas e sem acentos: "homem-aranha" encontra "Homem-Aranha", "jean" encontra "Jéan". */
-    private static String normalize(String s) {
-        if (s == null) return "";
-        String decomposed = Normalizer.normalize(s.trim(), Normalizer.Form.NFD);
-        return decomposed.replaceAll("\\p{M}+", "").toLowerCase(Locale.ROOT);
-    }
 }

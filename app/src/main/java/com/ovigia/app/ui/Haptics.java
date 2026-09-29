@@ -62,11 +62,17 @@ public final class Haptics {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             vibrator.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_MEDIA));
         } else {
-            vibrator.vibrate(effect, new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_GAME)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build());
+            vibrateLegacy(vibrator, effect);
         }
+    }
+
+    /** Antes do Android 13, a única forma de dizer que a vibração não é toque de interface. */
+    @SuppressWarnings("deprecation")
+    private static void vibrateLegacy(Vibrator vibrator, VibrationEffect effect) {
+        vibrator.vibrate(effect, new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build());
     }
 
     @Nullable

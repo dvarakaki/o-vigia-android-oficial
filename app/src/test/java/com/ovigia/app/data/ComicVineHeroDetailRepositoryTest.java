@@ -115,6 +115,11 @@ public class ComicVineHeroDetailRepositoryTest {
         Result r = load(repo(id -> Response.success(invalidKey)));
         assertEquals(LoadError.NOT_CONFIGURED, r.error);
         assertNull(r.detail);
+
+        ComicVineResponse<CharacterDetail> notFound = new ComicVineResponse<>();
+        notFound.statusCode = 101;
+        assertEquals("herói que a Comic Vine não tem", LoadError.NOT_FOUND,
+                load(repo(id -> Response.success(notFound))).error);
     }
 
     @Test

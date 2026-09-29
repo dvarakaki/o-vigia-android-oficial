@@ -8,14 +8,12 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.MultiTransformation;
-import com.bumptech.glide.load.resource.bitmap.CenterCrop;
-import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
 import com.ovigia.app.R;
 import com.ovigia.app.databinding.FragmentArtPanelBinding;
 import com.ovigia.app.databinding.PanelGuessBinding;
 import com.ovigia.app.engine.CharacterProfile;
 import com.ovigia.app.ui.Motion;
+import com.ovigia.app.ui.Portraits;
 import com.ovigia.app.ui.WatcherArt;
 
 /** O motor arrisca um personagem; o jogador confirma ou rejeita. */
@@ -93,9 +91,7 @@ public class GuessFragment extends GameFragment {
                 .load(guess.imageUrl)
                 .placeholder(R.drawable.ic_character_placeholder)
                 .error(R.drawable.ic_character_placeholder)
-                // CenterCrop + RoundedCorners juntos: encadear separado aplica só a última.
-                .transform(new MultiTransformation<>(new CenterCrop(),
-                        new RoundedCorners(getResources().getDimensionPixelSize(R.dimen.gap) * 2)))
+                .transform(Portraits.roundedCrop(Portraits.cardRadius(getResources())))
                 .into(panel.imageGuess);
         setButtonsEnabled(true);
         return true;

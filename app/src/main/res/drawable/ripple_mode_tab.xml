@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Toque numa opção do seletor Entrar / Criar conta: a onda fica dentro da pílula. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="@color/white_10">
+    <item android:id="@android:id/mask">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/white" />
+            <corners android:radius="22dp" />
+        </shape>
+    </item>
+</ripple>

@@ -1,5 +1,8 @@
 package com.ovigia.app.data.roster;
 
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 import com.google.gson.annotations.SerializedName;
@@ -10,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.function.Supplier;
 
 /**
  * Elenco jogável e classificações curadas à mão (times, poderes, crença de
@@ -48,6 +52,19 @@ public final class RosterCatalog {
         return new RosterCatalog(Collections.unmodifiableMap(byId));
     }
 
+    /**
+     * O elenco de {@code source}, ou {@code null} se ele não pôde ser lido: quem
+     * usa só as classificações (conquistas, sugestões de troca) segue sem elas.
+     */
+    @Nullable
+    public static RosterCatalog orNull(Supplier<RosterCatalog> source) {
+        try {
+            return source.get();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     /** Entrada curada do personagem, ou {@code null} se ele não faz parte do elenco. */
     public Entry get(int characterId) {
         return entriesById.get(characterId);
@@ -57,6 +74,7 @@ public final class RosterCatalog {
         return entriesById.size();
     }
 
+    @VisibleForTesting
     public Iterable<Entry> entries() {
         return entriesById.values();
     }

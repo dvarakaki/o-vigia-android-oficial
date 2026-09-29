@@ -39,7 +39,7 @@ public final class FadeNavOptions {
                                         @Nullable Bundle args) {
         AppContainer container = ((OVigiaApplication) from.requireActivity().getApplication()).container();
         container.ioExecutor.execute(() -> {
-            boolean signedIn = container.accountStore.currentAccount() != null;
+            boolean signedIn = container.accountStore.currentAccountId() != null;
             container.mainExecutor.execute(() -> {
                 if (!from.isAdded() || from.getView() == null) return;
                 NavController nav = NavHostFragment.findNavController(from);

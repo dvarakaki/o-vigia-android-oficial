@@ -3,10 +3,14 @@ package com.ovigia.app;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import com.ovigia.app.api.ApiClient;
 import com.ovigia.app.api.ComicVineService;
 import com.ovigia.app.auth.AccountStore;
+import com.ovigia.app.cloud.FirebasePlayerBackend;
+import com.ovigia.app.cloud.FirebaseServices;
+import com.ovigia.app.cloud.PlayerBackend;
 import com.ovigia.app.collection.CollectionStore;
 import com.ovigia.app.data.CharacterRepository;
 import com.ovigia.app.data.ComicVineCharacterRepository;
@@ -16,6 +20,8 @@ import com.ovigia.app.data.QuestionTexts;
 import com.ovigia.app.data.roster.RosterCatalog;
 import com.ovigia.app.engine.CharacterProfile;
 import com.ovigia.app.learning.LearningStore;
+import com.ovigia.app.legacy.LegacyData;
+import com.ovigia.app.legacy.LegacyMigration;
 import com.ovigia.app.profile.AndroidProfileImages;
 import com.ovigia.app.profile.ProfileImages;
 import com.ovigia.app.settings.AndroidAppCache;
@@ -25,7 +31,6 @@ import com.ovigia.app.settings.SettingsStore;
 import com.ovigia.app.social.AchievementsStore;
 import com.ovigia.app.social.AchievementsTracker;
 import com.ovigia.app.social.FirebaseSocialBackend;
-import com.ovigia.app.social.KeystoreCredentialVault;
 import com.ovigia.app.social.SocialRepository;
 import com.ovigia.app.translation.CachedHeroTranslationRepository;
 import com.ovigia.app.translation.HeroTranslationRepository;
@@ -50,6 +55,8 @@ import java.util.function.Supplier;
  * de testar com fakes.
  */
 public final class AppContainer {
+
+    private static final String TAG = "AppContainer";
 
     /** Uma thread só: serializa as gravações em disco e evita corridas entre elas. */
     public final ExecutorService ioExecutor = Executors.newSingleThreadExecutor(runnable -> {
@@ -97,34 +104,41 @@ public final class AppContainer {
         Handler mainHandler = new Handler(Looper.getMainLooper());
         mainExecutor = mainHandler::post;
 
-        // getFilesDir() toca o disco: os caminhos só são resolvidos no executor de I/O.
-        learningStore = new LearningStore(() -> new File(app.getFilesDir(), "learning_store.json"), ioExecutor);
-        accountStore = new AccountStore(() -> new File(app.getFilesDir(), "accounts.json"),
-                AccountStore.DEFAULT_ITERATIONS);
+        // A conta e todos os dados do jogador moram no Firebase: nada disso fica em arquivo do app.
+        FirebaseServices firebase = new FirebaseServices(app, BuildConfig.FIREBASE_EMULATOR_HOST);
+        PlayerBackend player = new FirebasePlayerBackend(firebase);
+        FirebaseSocialBackend social = new FirebaseSocialBackend(firebase);
+        profileImages = new AndroidProfileImages(app.getContentResolver());
+        // O que as versões até a 1.3 guardavam em arquivos sobe para a conta no primeiro login e some.
+        // getFilesDir() toca o disco: as pastas só são resolvidas no executor de I/O.
+        LegacyData legacy = new LegacyData(app::getFilesDir, app::getNoBackupFilesDir);
+        accountStore = new AccountStore(player, new LegacyMigration(player, social, legacy, profileImages));
+        learningStore = new LearningStore(player);
+        collectionStore = new CollectionStore(player);
+        achievementsStore = new AchievementsStore(player);
+        // Trocou de conta (ou saiu): o que foi lido da anterior não vale mais.
+        accountStore.addSessionListener(learningStore::invalidate);
+        accountStore.addSessionListener(collectionStore::invalidate);
+        accountStore.addSessionListener(achievementsStore::invalidate);
+
         ComicVineService comicVine = ApiClient.create();
         characterRepository = new ComicVineCharacterRepository(
                 comicVine,
                 ApiClient.apiKey(),
                 ApiClient.isConfigured(),
+                // O mesmo roster.json das conquistas, lido uma vez só.
                 () -> {
-                    try (Reader reader = new InputStreamReader(app.getAssets().open("roster.json"),
-                            StandardCharsets.UTF_8)) {
-                        return RosterCatalog.parse(reader);
-                    }
+                    RosterCatalog roster = rosterCatalog();
+                    if (roster == null) throw new IOException("roster.json ilegível");
+                    return roster;
                 },
                 () -> QuestionTexts.load(AppLocales.resources(app)),
                 learningStore,
-                () -> {
-                    AccountStore.Account current = accountStore.currentAccount();
-                    return current == null ? null : current.id;
-                },
+                accountStore::currentAccountId,
                 () -> new File(app.getFilesDir(), "characters_cache.json"),
                 ioExecutor,
                 mainExecutor);
 
-        collectionStore = new CollectionStore(() -> new File(app.getFilesDir(), "collection.json"));
-        profileImages = new AndroidProfileImages(app.getContentResolver(),
-                () -> new File(app.getFilesDir(), "profile_media"));
         Supplier<File> heroDetailsDirectory = () -> new File(app.getFilesDir(), "hero_details");
         heroDetailRepository = new ComicVineHeroDetailRepository(
                 ComicVineHeroDetailRepository.remote(comicVine, ApiClient.apiKey()),
@@ -143,25 +157,19 @@ public final class AppContainer {
         settingsStore = new SettingsStore(() -> new File(app.getFilesDir(), "settings.json"), ioExecutor);
         haptics = new Haptics(app, settingsStore);
         appCache = new AndroidAppCache(app, heroDetailsDirectory, heroTranslationsDirectory);
-        achievementsStore = new AchievementsStore(() -> new File(app.getFilesDir(), "achievements.json"));
         achievements = new AchievementsTracker(accountStore, collectionStore, learningStore,
                 achievementsStore, this::rosterCatalog, ioExecutor, mainExecutor);
-        socialRepository = new SocialRepository(
-                new FirebaseSocialBackend(app, BuildConfig.FIREBASE_EMULATOR_HOST),
-                accountStore, collectionStore, learningStore, profileImages, this::rosterCatalog,
-                socialExecutor, System::currentTimeMillis,
-                // Fora do backup: a senha cifrada só abre neste aparelho, com a chave do Keystore dele.
-                new KeystoreCredentialVault(() -> new File(app.getNoBackupFilesDir(), "pending_link.json")));
+        socialRepository = new SocialRepository(social, accountStore, collectionStore, learningStore,
+                this::rosterCatalog, socialExecutor, System::currentTimeMillis);
 
-        // Aquece o aprendizado, a sessão e as preferências fora da main thread antes da primeira tela que precisa deles.
-        ioExecutor.execute(learningStore::ensureLoaded);
-        ioExecutor.execute(accountStore::ensureLoaded);
+        // Aquece as preferências e a conta fora da main thread antes da primeira tela que precisa delas.
+        // Ler a conta primeiro garante que o que veio das versões antigas já subiu antes de qualquer
+        // outra leitura (coleção, aprendizado, conquistas).
         ioExecutor.execute(settingsStore::ensureLoaded);
+        ioExecutor.execute(accountStore::currentAccount);
         // Crava o marco zero das conquistas antes da primeira partida: sem isso, quem
         // atualizou o app com meia coleção pronta veria uma enxurrada de cartões.
         achievements.sync();
-        // Um login sem rede deixou a conexão com os amigos pela metade: termina assim que der.
-        socialRepository.resumePendingQuietly();
         // Aquece o elenco durante a abertura: sem cache em disco (instalação nova, ou vencido),
         // essa é a chamada lenta à Comic Vine — feita agora, some no tempo da splash em vez de
         // atrasar a primeira pergunta. Com cache, é só uma leitura de disco a mais, barata. O
@@ -181,7 +189,7 @@ public final class AppContainer {
     }
 
     /**
-     * Equipes e vilania do roster.json, lidas uma vez (conquistas). Bloqueante na
+     * Elenco curado do roster.json (jogo e conquistas), lido uma vez. Bloqueante na
      * primeira chamada: fora da main thread. {@code null} se o arquivo não pôde ser lido.
      */
     public synchronized RosterCatalog rosterCatalog() {
@@ -191,6 +199,7 @@ public final class AppContainer {
                     StandardCharsets.UTF_8)) {
                 rosterCatalog = RosterCatalog.parse(reader);
             } catch (IOException | RuntimeException e) {
+                Log.e(TAG, "roster.json ilegível", e);
                 rosterCatalog = null;
             }
         }

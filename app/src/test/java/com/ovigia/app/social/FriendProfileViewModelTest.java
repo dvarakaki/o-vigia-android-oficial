@@ -5,14 +5,13 @@ import androidx.arch.core.executor.testing.InstantTaskExecutorRule;
 import com.ovigia.app.auth.AccountStore;
 import com.ovigia.app.collection.CollectionStore;
 import com.ovigia.app.learning.LearningStore;
-import com.ovigia.app.profile.FakeProfileImages;
+import com.ovigia.app.cloud.FakeCloud;
 import com.ovigia.app.profile.PlayerRank;
 import com.ovigia.app.social.FriendProfileUiState.Status;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,11 +27,8 @@ public class FriendProfileViewModelTest {
     @Rule
     public InstantTaskExecutorRule instantLiveData = new InstantTaskExecutorRule();
 
-    @Rule
-    public TemporaryFolder tmp = new TemporaryFolder();
-
     private final Executor direct = Runnable::run;
-    private FakeSocialBackend backend;
+    private FakeCloud backend;
     private SocialRepository repository;
     private CollectionStore collection;
     private AccountStore accounts;
@@ -41,14 +37,12 @@ public class FriendProfileViewModelTest {
 
     @Before
     public void setUp() throws SocialException {
-        backend = new FakeSocialBackend();
-        accounts = new AccountStore(() -> tmp.getRoot().toPath().resolve("accounts.json").toFile(), 1_000);
-        collection = new CollectionStore(() -> tmp.getRoot().toPath().resolve("collection.json").toFile());
-        LearningStore learning = new LearningStore(() -> tmp.getRoot().toPath().resolve("learning.json").toFile(), direct);
-        repository = new SocialRepository(backend, accounts, collection, learning,
-                new FakeProfileImages(tmp.getRoot()), () -> null, direct, () -> 1L);
+        backend = new FakeCloud();
+        accounts = new AccountStore(backend);
+        collection = new CollectionStore(backend);
+        LearningStore learning = new LearningStore(backend);
+        repository = new SocialRepository(backend, accounts, collection, learning, () -> null, direct, () -> 1L);
         accounts.signUp("Davi", "davi@exemplo.com", "segredo#1");
-        repository.connect("segredo#1");
         me = repository.claimUsername("davi").card;
 
         ana = backend.registerOther("ana@exemplo.com", "senha-ana", "ana", "Ana");
@@ -88,6 +82,19 @@ public class FriendProfileViewModelTest {
 
         assertEquals(Status.ERROR, vm.state().getValue().status);
         assertEquals(SocialException.Error.PERMISSION_DENIED, vm.state().getValue().error);
+    }
+
+    @Test
+    public void unexpectedFailure_showsTheErrorInsteadOfCrashing() {
+        backend.operationFailure = new IllegalStateException("SDK sem inicializar");
+        FriendProfileViewModel vm = new FriendProfileViewModel(ana.uid, repository, direct, direct);
+        vm.start();
+        assertEquals(Status.ERROR, vm.state().getValue().status);
+        assertEquals(SocialException.Error.UNKNOWN, vm.state().getValue().error);
+
+        backend.operationFailure = null;
+        vm.retry();
+        assertEquals(Status.READY, vm.state().getValue().status);
     }
 
     @Test

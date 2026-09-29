@@ -51,7 +51,7 @@
     <string name="profile_open_catalog">Abrir catálogo</string>
     <string name="profile_sign_out">Cerrar sesión</string>
     <string name="profile_sign_out_confirm_title">¿Cerrar sesión?</string>
-    <string name="profile_sign_out_confirm_message">Tu colección, tus logros y tu progreso siguen guardados en este dispositivo. Para volver, solo tienes que iniciar sesión de nuevo.</string>
+    <string name="profile_sign_out_confirm_message">Tu colección, tus logros y tu progreso quedan guardados en tu cuenta. Para volver, solo inicia sesión de nuevo, en este o en cualquier dispositivo.</string>
     <string name="profile_signed_out_message">Cerraste sesión.</string>
 
     <!-- Amigos -->
@@ -59,10 +59,6 @@
     <string name="friends_cd_refresh">Actualizar amigos y solicitudes</string>
     <string name="friends_not_configured_title">Amigos no disponibles</string>
     <string name="friends_not_configured_body">Esta versión de la app no tiene un servidor de amigos configurado.</string>
-    <string name="friends_connect_title">Juega con tus amigos</string>
-    <string name="friends_connect_body">Conecta tu cuenta para agregar amigos y ver su perfil, los héroes que ya desbloquearon y sus logros.</string>
-    <string name="friends_hint_password">Contraseña de tu cuenta</string>
-    <string name="friends_connect_action">Conectar cuenta</string>
     <string name="friends_privacy_note">Tus amigos ven tu nombre, \@usuario, foto, banner, bio, estadísticas, héroes y logros. Tu correo nunca aparece.</string>
     <string name="friends_username_title">Elige tu \@usuario</string>
     <string name="friends_username_body">Así te encontrarán tus amigos.</string>
@@ -75,7 +71,6 @@
     <string name="friends_username_too_long">El \@usuario puede tener como máximo 20 caracteres.</string>
     <string name="friends_error_title">No se pudo cargar</string>
     <string name="friends_error_offline">Sin conexión a internet.</string>
-    <string name="friends_error_wrong_password">Contraseña incorrecta.</string>
     <string name="friends_error_generic">Algo salió mal. Inténtalo de nuevo.</string>
     <string name="friends_me_label">Eres</string>
     <string name="friends_cd_me">Tu \@usuario es %1$s</string>
@@ -103,7 +98,6 @@
     <string name="friends_message_declined">Solicitud rechazada.</string>
     <string name="friends_message_canceled">Solicitud cancelada.</string>
     <string name="friends_message_username_saved">\@usuario guardado.</string>
-    <string name="friends_message_connected">Cuenta conectada.</string>
 
     <!-- Perfil de un amigo -->
     <string name="friend_profile_updated">Actualizado %1$s</string>
@@ -232,6 +226,11 @@
     <string name="auth_reason_unlock">Inicia sesión para desbloquear a %1$s en tu catálogo.</string>
     <string name="auth_error_name_required">Escribe tu nombre.</string>
     <string name="auth_error_invalid_email">Escribe un correo electrónico válido.</string>
+    <string name="auth_error_generic">No se pudo iniciar sesión ahora. Inténtalo de nuevo.</string>
+    <string name="auth_error_too_many_attempts">Demasiados intentos seguidos. Espera un poco e inténtalo de nuevo.</string>
+    <string name="auth_error_unavailable">Las cuentas no están disponibles en esta versión de la app.</string>
+    <string name="auth_error_offline">Sin conexión a internet. Iniciar sesión y crear una cuenta la necesitan.</string>
+    <string name="auth_email_valid_cd">Correo electrónico válido</string>
     <string name="auth_error_email_in_use">Ya existe una cuenta con ese correo.</string>
     <string name="auth_error_weak_password">La contraseña necesita al menos 8 caracteres y un carácter especial.</string>
     <string name="password_rule_length">Al menos %1$d caracteres</string>
@@ -366,7 +365,7 @@
     <string name="edit_save_profile">Guardar cambios</string>
     <string name="edit_change_password">Cambiar contraseña</string>
     <string name="edit_delete_account">Eliminar cuenta</string>
-    <string name="edit_delete_explanation">Eliminar la cuenta borra tu colección, tu foto y tu banner de este dispositivo y, si está conectada a amigos, también la cuenta en línea. Las estadísticas de las partidas se mantienen.</string>
+    <string name="edit_delete_explanation">Eliminar la cuenta borra todo lo que tiene: colección, historial, lo que aprendió el Vigilante, foto, banner, amigos e intercambios. No se puede deshacer.</string>
     <string name="edit_delete_confirm_title">¿Eliminar tu cuenta?</string>
     <string name="edit_delete_confirm_message">Esto no se puede deshacer. Escribe tu contraseña para confirmar.</string>
     <string name="edit_photo_options_title">Foto del perfil</string>
@@ -374,6 +373,7 @@
     <string name="edit_option_choose_image">Elegir de la galería</string>
     <string name="edit_option_remove_image">Quitar</string>
     <string name="edit_saved">Perfil actualizado.</string>
+    <string name="edit_email_change_sent">Enviamos un enlace a %1$s. El correo cambia cuando lo confirmes allí.</string>
     <string name="edit_password_changed">Contraseña cambiada.</string>
     <string name="edit_image_updated">Imagen actualizada.</string>
     <string name="edit_image_removed">Imagen quitada.</string>
@@ -382,7 +382,7 @@
     <string name="edit_error_name_too_long">El nombre puede tener como máximo 40 caracteres.</string>
     <string name="edit_error_bio_too_long">La bio puede tener como máximo 120 caracteres.</string>
     <string name="edit_error_wrong_password">Contraseña actual incorrecta.</string>
-    <string name="edit_error_delete_online_unavailable">Sin conexión. Conéctate a internet para eliminar también tu cuenta de amigos en línea.</string>
+    <string name="edit_error_offline">Sin conexión a internet. Inténtalo de nuevo.</string>
 
     <!-- Títulos del jugador -->
     <string name="rank_newcomer">Recién llegado</string>
@@ -440,6 +440,7 @@
     <string name="error_not_configured">La clave de Comic Vine no está configurada o fue rechazada.</string>
     <string name="error_server">No se pudieron cargar los personajes.</string>
     <string name="error_empty_roster">No se encontró ningún personaje válido.</string>
+    <string name="error_hero_not_found">Comic Vine no tiene la ficha de este héroe.</string>
 
     <!-- Intento -->
     <string name="answer_intro">Creo que es:</string>

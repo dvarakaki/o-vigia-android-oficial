@@ -50,7 +50,7 @@
     <string name="profile_open_catalog">Open catalog</string>
     <string name="profile_sign_out">Sign out</string>
     <string name="profile_sign_out_confirm_title">Sign out?</string>
-    <string name="profile_sign_out_confirm_message">Your collection, achievements and progress stay saved on this device. To come back, just sign in again.</string>
+    <string name="profile_sign_out_confirm_message">Your collection, achievements and progress stay saved in your account. To come back, just sign in again — on this or any device.</string>
     <string name="profile_signed_out_message">You signed out of your account.</string>
 
     <!-- Friends -->
@@ -58,10 +58,6 @@
     <string name="friends_cd_refresh">Refresh friends and requests</string>
     <string name="friends_not_configured_title">Friends unavailable</string>
     <string name="friends_not_configured_body">This version of the app has no friends server set up.</string>
-    <string name="friends_connect_title">Play with your friends</string>
-    <string name="friends_connect_body">Connect your account to add friends and see their profiles, the heroes they\'ve unlocked and their achievements.</string>
-    <string name="friends_hint_password">Your account password</string>
-    <string name="friends_connect_action">Connect account</string>
     <string name="friends_privacy_note">Your friends see your name, \@username, photo, banner, bio, stats, heroes and achievements. Your email is never shown.</string>
     <string name="friends_username_title">Choose your \@username</string>
     <string name="friends_username_body">It\'s how your friends will find you.</string>
@@ -74,7 +70,6 @@
     <string name="friends_username_too_long">The \@username can have at most 20 characters.</string>
     <string name="friends_error_title">Couldn\'t load</string>
     <string name="friends_error_offline">No internet connection.</string>
-    <string name="friends_error_wrong_password">Incorrect password.</string>
     <string name="friends_error_generic">Something went wrong. Try again.</string>
     <string name="friends_me_label">You are</string>
     <string name="friends_cd_me">Your \@username is %1$s</string>
@@ -102,7 +97,6 @@
     <string name="friends_message_declined">Request declined.</string>
     <string name="friends_message_canceled">Request canceled.</string>
     <string name="friends_message_username_saved">\@username saved.</string>
-    <string name="friends_message_connected">Account connected.</string>
 
     <!-- Friend profile -->
     <string name="friend_profile_updated">Updated %1$s</string>
@@ -227,9 +221,14 @@
     <string name="auth_reason_unlock">Sign in to unlock %1$s in your catalog.</string>
     <string name="auth_error_name_required">Enter your name.</string>
     <string name="auth_error_invalid_email">Enter a valid email.</string>
+    <string name="auth_error_generic">Couldn\'t sign in right now. Try again.</string>
+    <string name="auth_error_too_many_attempts">Too many attempts in a row. Wait a moment and try again.</string>
+    <string name="auth_error_unavailable">Accounts aren\'t available in this version of the app.</string>
+    <string name="auth_error_offline">No internet connection. Signing in and signing up need it.</string>
+    <string name="auth_email_valid_cd">Valid email</string>
     <string name="auth_error_email_in_use">An account with this email already exists.</string>
     <string name="auth_error_weak_password">Your password needs at least 8 characters and one special character.</string>
-    <string name="password_rule_length">At least %1$d characters</string>
+    <string name="password_rule_length" tools:ignore="PluralsCandidate">At least %1$d characters</string>
     <string name="password_rule_special">One special character (! @ # $ …)</string>
     <string name="password_rule_met">%1$s: done</string>
     <string name="password_rule_pending">%1$s: missing</string>
@@ -360,7 +359,7 @@
     <string name="edit_save_profile">Save changes</string>
     <string name="edit_change_password">Change password</string>
     <string name="edit_delete_account">Delete account</string>
-    <string name="edit_delete_explanation">Deleting the account erases your collection, photo and banner from this device and, if it\'s connected to friends, the online account too. Game stats are kept.</string>
+    <string name="edit_delete_explanation">Deleting the account erases everything in it: collection, history, what the Watcher learned, photo, banner, friends and trades. This can\'t be undone.</string>
     <string name="edit_delete_confirm_title">Delete your account?</string>
     <string name="edit_delete_confirm_message">This can\'t be undone. Enter your password to confirm.</string>
     <string name="edit_photo_options_title">Profile photo</string>
@@ -368,6 +367,7 @@
     <string name="edit_option_choose_image">Choose from gallery</string>
     <string name="edit_option_remove_image">Remove</string>
     <string name="edit_saved">Profile updated.</string>
+    <string name="edit_email_change_sent">We sent a link to %1$s. Your email changes once you confirm it there.</string>
     <string name="edit_password_changed">Password changed.</string>
     <string name="edit_image_updated">Image updated.</string>
     <string name="edit_image_removed">Image removed.</string>
@@ -376,7 +376,7 @@
     <string name="edit_error_name_too_long">Name can be at most 40 characters long.</string>
     <string name="edit_error_bio_too_long">Bio can be at most 120 characters long.</string>
     <string name="edit_error_wrong_password">Incorrect current password.</string>
-    <string name="edit_error_delete_online_unavailable">No connection. Connect to the internet to also delete your online friends account.</string>
+    <string name="edit_error_offline">No internet connection. Try again.</string>
 
     <!-- Player ranks -->
     <string name="rank_newcomer">Newcomer</string>
@@ -434,6 +434,7 @@
     <string name="error_not_configured">The Comic Vine key is missing or was rejected.</string>
     <string name="error_server">Couldn\'t load the characters.</string>
     <string name="error_empty_roster">No valid characters were found.</string>
+    <string name="error_hero_not_found">Comic Vine has no profile for this hero.</string>
 
     <!-- Guess -->
     <string name="answer_intro">I think it\'s:</string>

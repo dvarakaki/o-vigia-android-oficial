@@ -3,6 +3,7 @@ package com.ovigia.app.social;
 import androidx.annotation.Nullable;
 
 import com.ovigia.app.data.roster.RosterCatalog;
+import com.ovigia.app.learning.LearningStore;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -19,6 +20,12 @@ public final class Achievements {
 
     /** A partir desta crença de vilania o herói conta como vilão. */
     static final double VILLAIN_BELIEF = 0.5;
+
+    /** Progresso em todas as conquistas da conta, com os números das partidas dela. */
+    public static List<AchievementProgress> evaluate(Collection<Integer> unlockedHeroIds, @Nullable RosterCatalog roster,
+                                                     LearningStore.Stats stats) {
+        return evaluate(unlockedHeroIds, roster, stats.gamesPlayed, stats.playerWins());
+    }
 
     /**
      * Progresso em todas as conquistas, na ordem do enum.

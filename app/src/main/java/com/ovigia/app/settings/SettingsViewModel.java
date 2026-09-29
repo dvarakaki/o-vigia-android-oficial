@@ -103,9 +103,7 @@ public class SettingsViewModel extends ViewModel {
     /** Apaga as estatísticas e tudo o que o motor aprendeu com as partidas da conta ativa. */
     public void forgetLearning() {
         ioExecutor.execute(() -> {
-            AccountStore.Account account = accountStore.currentAccount();
-            String accountId = account == null ? null : account.id;
-            learningStore.reset(accountId);
+            learningStore.reset(accountStore.currentAccountId());
             mainExecutor.execute(() -> messages.setValue(new Event<>(Message.LEARNING_FORGOTTEN)));
         });
     }

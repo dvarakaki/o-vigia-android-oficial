@@ -9,6 +9,8 @@
 
     <color name="vigia_space">#FF070B1F</color>
     <color name="vigia_blue">#FF1957D8</color>
+    <!-- Ponta clara do degradê azul (seletor Entrar / Criar conta). -->
+    <color name="vigia_blue_bright">#FF3B78F2</color>
     <!-- Azul legível sobre o painel escuro (legendas e gráficos). -->
     <color name="vigia_blue_light">#FF5B8CFF</color>
     <color name="vigia_danger">#FFFF6B6B</color>

@@ -106,7 +106,7 @@
                         android:accessibilityHeading="true"
                         android:gravity="center"
                         android:textAppearance="@style/TextAppearance.OVigia.Title"
-                        tools:text="@string/friends_connect_title" />
+                        tools:text="@string/friends_username_title" />
 
                     <TextView
                         android:id="@+id/tvGateBody"
@@ -116,29 +116,7 @@
                         android:gravity="center"
                         android:textColor="@color/white_70"
                         android:textSize="15sp"
-                        tools:text="@string/friends_connect_body" />
-
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/passwordLayout"
-                        style="@style/Widget.OVigia.TextField"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:hint="@string/friends_hint_password"
-                        android:visibility="gone"
-                        app:endIconMode="password_toggle"
-                        app:endIconTint="@color/white_70"
-                        tools:visibility="visible">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etPassword"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:autofillHints="password"
-                            android:imeOptions="actionDone"
-                            android:inputType="textPassword"
-                            android:maxLines="1" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                        tools:text="@string/friends_username_body" />
 
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/usernameLayout"
@@ -190,7 +168,7 @@
                             style="@style/Widget.OVigia.Button"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            tools:text="@string/friends_connect_action" />
+                            tools:text="@string/friends_username_action" />
 
                         <com.google.android.material.progressindicator.CircularProgressIndicator
                             android:id="@+id/gateProgress"

@@ -16,11 +16,10 @@ import com.ovigia.app.R;
 import com.ovigia.app.databinding.ItemRefRowBinding;
 import com.ovigia.app.databinding.SheetRefListBinding;
 import com.ovigia.app.model.ApiRef;
+import com.ovigia.app.util.SearchText;
 
-import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Gaveta com uma lista completa da ficha (pode ter milhares de itens, ex.:
@@ -62,11 +61,6 @@ final class RefListSheet {
         dialog.show();
     }
 
-    private static String normalize(String s) {
-        if (s == null) return "";
-        return Normalizer.normalize(s.trim(), Normalizer.Form.NFD).replaceAll("\\p{M}+", "").toLowerCase(Locale.ROOT);
-    }
-
     private static final class Adapter extends RecyclerView.Adapter<Adapter.Holder> {
 
         private final Context context;
@@ -84,11 +78,11 @@ final class RefListSheet {
 
         @SuppressWarnings("NotifyDataSetChanged")
         void filter(String query) {
-            String needle = normalize(query);
+            String needle = SearchText.fold(query);
             visible.clear();
             for (int i = 0; i < all.size(); i++) {
                 ApiRef ref = all.get(i);
-                if (needle.isEmpty() || normalize(ref == null ? null : ref.name).contains(needle)) visible.add(i);
+                if (needle.isEmpty() || SearchText.fold(ref == null ? null : ref.name).contains(needle)) visible.add(i);
             }
             notifyDataSetChanged();
         }

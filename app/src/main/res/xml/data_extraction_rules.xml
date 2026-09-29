@@ -1,18 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 12+. Aprendizado, contas, coleção, imagens do perfil e configurações acompanham o jogador; o cache do elenco (baixável de novo) fica de fora. -->
+<!--
+  Android 12+. Só as preferências do aparelho (vibração, tela ligada) acompanham o
+  jogador; a conta e os dados dele moram no Firebase e voltam ao entrar de novo.
+-->
 <data-extraction-rules>
     <cloud-backup>
-        <include domain="file" path="learning_store.json" />
-        <include domain="file" path="accounts.json" />
-        <include domain="file" path="collection.json" />
-        <include domain="file" path="profile_media/" />
         <include domain="file" path="settings.json" />
     </cloud-backup>
     <device-transfer>
-        <include domain="file" path="learning_store.json" />
-        <include domain="file" path="accounts.json" />
-        <include domain="file" path="collection.json" />
-        <include domain="file" path="profile_media/" />
         <include domain="file" path="settings.json" />
     </device-transfer>
 </data-extraction-rules>

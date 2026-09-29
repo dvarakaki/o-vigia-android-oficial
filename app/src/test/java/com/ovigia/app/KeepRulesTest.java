@@ -32,7 +32,9 @@ import static org.junit.Assert.assertTrue;
  * tudo que um dos tipos abaixo alcança, direta ou indiretamente, precisa de regra.
  *
  * Ao criar um arquivo novo em JSON (ou um tipo novo dentro de um existente), inclua
- * a classe raiz aqui e a regra no rules.keep.
+ * a classe raiz aqui e a regra no rules.keep. (Os dados do jogador não passam por
+ * aqui: vão para o Firestore campo a campo, e os arquivos das versões antigas são
+ * lidos como árvore JSON pela {@code LegacyData}, sem reflexão.)
  */
 public class KeepRulesTest {
 
@@ -40,12 +42,7 @@ public class KeepRulesTest {
 
     /** Tipos que o Gson lê e grava; o que eles alcançam entra na conta. */
     private static final String[] GSON_ROOTS = {
-            "com.ovigia.app.auth.AccountStore$State",
-            "com.ovigia.app.collection.CollectionStore$State",
-            "com.ovigia.app.learning.LearningStore$State",
             "com.ovigia.app.settings.SettingsStore$State",
-            "com.ovigia.app.social.AchievementsStore$State",
-            "com.ovigia.app.social.KeystoreCredentialVault$Sealed",
             "com.ovigia.app.translation.CachedHeroTranslationRepository$Cache",
             "com.ovigia.app.data.roster.RosterCatalog$Document",
             "com.ovigia.app.model.Character",

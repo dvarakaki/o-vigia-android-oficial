@@ -5,14 +5,13 @@ import androidx.arch.core.executor.testing.InstantTaskExecutorRule;
 import com.ovigia.app.auth.AccountStore;
 import com.ovigia.app.collection.CollectionStore;
 import com.ovigia.app.learning.LearningStore;
-import com.ovigia.app.profile.FakeProfileImages;
+import com.ovigia.app.cloud.FakeCloud;
 import com.ovigia.app.social.FriendsUiState.HeroReceived;
 import com.ovigia.app.util.Event;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -33,16 +32,13 @@ public class TradesTest {
     @Rule
     public InstantTaskExecutorRule instantLiveData = new InstantTaskExecutorRule();
 
-    @Rule
-    public TemporaryFolder tmp = new TemporaryFolder();
-
     private static final PublicProfile.Hero IRON_MAN = new PublicProfile.Hero(1455, "Iron Man", "http://img/1455", 0L);
     private static final PublicProfile.Hero THOR = new PublicProfile.Hero(2268, "Thor", "http://img/2268", 0L);
     private static final PublicProfile.Hero SPIDER_MAN = new PublicProfile.Hero(1009610, "Spider-Man", "http://img/sm", 0L);
     private static final PublicProfile.Hero WOLVERINE = new PublicProfile.Hero(1009718, "Wolverine", "http://img/w", 0L);
 
     private final Executor direct = Runnable::run;
-    private FakeSocialBackend backend;
+    private FakeCloud backend;
     private Device davi;
     private Device ana;
 
@@ -54,14 +50,11 @@ public class TradesTest {
         final UserCard card;
 
         Device(String name, String email, String username) throws SocialException {
-            accounts = new AccountStore(() -> tmp.getRoot().toPath().resolve(username + "-accounts.json").toFile(), 1_000);
-            collection = new CollectionStore(() -> tmp.getRoot().toPath().resolve(username + "-collection.json").toFile());
-            LearningStore learning = new LearningStore(
-                    () -> tmp.getRoot().toPath().resolve(username + "-learning.json").toFile(), direct);
-            repository = new SocialRepository(backend, accounts, collection, learning,
-                    new FakeProfileImages(tmp.getRoot()), () -> null, direct, () -> 7L);
+            accounts = new AccountStore(backend);
+            collection = new CollectionStore(backend);
+            LearningStore learning = new LearningStore(backend);
+            repository = new SocialRepository(backend, accounts, collection, learning, () -> null, direct, () -> 7L);
             accounts.signUp(name, email, "segredo#1");
-            repository.connect("segredo#1");
             card = repository.claimUsername(username).card;
         }
 
@@ -84,7 +77,7 @@ public class TradesTest {
 
     @Before
     public void setUp() throws SocialException {
-        backend = new FakeSocialBackend();
+        backend = new FakeCloud();
         davi = new Device("Davi", "davi@exemplo.com", "davi");
         ana = new Device("Ana", "ana@exemplo.com", "ana");
 

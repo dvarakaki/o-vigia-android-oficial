@@ -88,6 +88,13 @@ public class GameEngine {
     private static final double CONFIRM_MODE_MIN_LEAD_PROBABILITY = 0.30;
     private static final double CONFIRM_MODE_MIN_RATIO = 2.0;
 
+    /**
+     * Multiplicador extra no prior de personagens de reconhecimento mainstream.
+     * Resolve o problema em que personagens com muitas aparições em quadrinhos
+     * mas pouco reconhecimento dominam a distribuição inicial.
+     */
+    private static final double MAINSTREAM_PRIOR_BOOST = 4.0;
+
     private static final double LOG2 = Math.log(2);
 
     private final List<CharacterProfile> candidates;
@@ -123,13 +130,6 @@ public class GameEngine {
         this.random = random;
         applyPopularityPrior(popularityBoost);
     }
-
-    /**
-     * Multiplicador extra no prior de personagens de reconhecimento mainstream.
-     * Resolve o problema em que personagens com muitas aparições em quadrinhos
-     * mas pouco reconhecimento dominam a distribuição inicial.
-     */
-    private static final double MAINSTREAM_PRIOR_BOOST = 4.0;
 
     /**
      * Prior inicial ponderado por popularidade real: log(2 + aparições em

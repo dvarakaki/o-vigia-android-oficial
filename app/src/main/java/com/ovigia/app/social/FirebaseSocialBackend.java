@@ -1,20 +1,13 @@
 package com.ovigia.app.social;
 
-import android.content.Context;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
 
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
-import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseNetworkException;
-import com.google.firebase.FirebaseOptions;
-import com.google.firebase.auth.EmailAuthProvider;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
-import com.google.firebase.auth.FirebaseAuthInvalidUserException;
-import com.google.firebase.auth.FirebaseAuthUserCollisionException;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentReference;
@@ -22,10 +15,11 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldPath;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
-import com.google.firebase.firestore.FirebaseFirestoreSettings;
-import com.google.firebase.firestore.MemoryCacheSettings;
 import com.google.firebase.firestore.QuerySnapshot;
+import com.google.firebase.firestore.Source;
 import com.google.firebase.firestore.WriteBatch;
+import com.ovigia.app.cloud.CloudException;
+import com.ovigia.app.cloud.FirebaseServices;
 
 import java.text.Collator;
 import java.util.ArrayList;
@@ -53,8 +47,9 @@ import java.util.concurrent.TimeoutException;
  *   <li>{@code trades/{from}_{to}_{heroId}}: propostas de troca de heróis entre amigos.</li>
  * </ul>
  *
- * Tudo roda com {@link Tasks#await} numa thread de fundo; o cache do Firestore
- * fica só na memória, então sem rede as operações falham com
+ * Tudo roda com {@link Tasks#await} numa thread de fundo e lê só do servidor
+ * ({@link Source#SERVER}): o cache que o Firestore guarda no aparelho é para a
+ * conta do jogador; sem rede, os amigos falham com
  * {@link SocialException.Error#OFFLINE} em vez de mostrar dados velhos.
  */
 public final class FirebaseSocialBackend implements SocialBackend {
@@ -63,102 +58,18 @@ public final class FirebaseSocialBackend implements SocialBackend {
     private static final long TIMEOUT_SECONDS = 15;
     /** Limite de valores de um filtro "in" do Firestore. */
     private static final int IN_QUERY_LIMIT = 10;
-    /** Projeto "demo-*": o Emulator Suite aceita sem projeto real no console. */
-    private static final String EMULATOR_PROJECT_ID = "demo-ovigia";
     private static final String TRADE_PENDING = "pending";
     private static final String TRADE_ACCEPTED = "accepted";
 
-    private final Context context;
-    private final String emulatorHost;
-    private FirebaseAuth auth;
-    private FirebaseFirestore db;
+    private final FirebaseServices services;
 
-    /** @param emulatorHost host do Firebase Local Emulator Suite, ou vazio para o projeto real */
-    public FirebaseSocialBackend(Context context, String emulatorHost) {
-        this.context = context.getApplicationContext();
-        this.emulatorHost = emulatorHost == null ? "" : emulatorHost.trim();
+    public FirebaseSocialBackend(FirebaseServices services) {
+        this.services = services;
     }
 
     @Override
     public boolean isConfigured() {
-        return !emulatorHost.isEmpty() || !FirebaseApp.getApps(context).isEmpty();
-    }
-
-    /** Liga Auth e Firestore na primeira operação (ler a sessão salva toca o disco). */
-    private synchronized void init() throws SocialException {
-        if (auth != null) return;
-        if (!isConfigured()) throw new SocialException(SocialException.Error.NOT_CONFIGURED);
-        FirebaseApp app;
-        if (!FirebaseApp.getApps(context).isEmpty()) {
-            app = FirebaseApp.getInstance();
-        } else {
-            app = FirebaseApp.initializeApp(context, new FirebaseOptions.Builder()
-                    .setProjectId(EMULATOR_PROJECT_ID)
-                    .setApplicationId("1:000000000000:android:0000000000000000")
-                    .setApiKey("emulator")
-                    .build());
-        }
-        FirebaseAuth newAuth = FirebaseAuth.getInstance(app);
-        FirebaseFirestore newDb = FirebaseFirestore.getInstance(app);
-        if (!emulatorHost.isEmpty()) {
-            newAuth.useEmulator(emulatorHost, 9099);
-            newDb.useEmulator(emulatorHost, 8080);
-        }
-        newDb.setFirestoreSettings(new FirebaseFirestoreSettings.Builder()
-                .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
-                .build());
-        auth = newAuth;
-        db = newDb;
-    }
-
-    // ---------------------------------------------------------------- sessão
-
-    @Nullable
-    @Override
-    public String signedInUid() {
-        try {
-            init();
-        } catch (SocialException e) {
-            return null;
-        }
-        FirebaseUser user = auth.getCurrentUser();
-        return user != null ? user.getUid() : null;
-    }
-
-    @Override
-    public String signIn(String email, String password, boolean createIfMissing) throws SocialException {
-        init();
-        try {
-            return Tasks.await(auth.signInWithEmailAndPassword(email, password), TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                    .getUser().getUid();
-        } catch (ExecutionException e) {
-            // Com a proteção contra enumeração de e-mails, "senha errada" e "conta
-            // não existe" chegam como o mesmo erro: só criando dá para saber.
-            if (!createIfMissing || !isBadCredentials(e.getCause())) throw mapped(e);
-        } catch (InterruptedException | TimeoutException e) {
-            throw mapped(e);
-        }
-        try {
-            return Tasks.await(auth.createUserWithEmailAndPassword(email, password), TIMEOUT_SECONDS,
-                    TimeUnit.SECONDS).getUser().getUid();
-        } catch (ExecutionException e) {
-            if (e.getCause() instanceof FirebaseAuthUserCollisionException) {
-                throw new SocialException(SocialException.Error.WRONG_PASSWORD, e);
-            }
-            throw mapped(e);
-        } catch (InterruptedException | TimeoutException e) {
-            throw mapped(e);
-        }
-    }
-
-    @Override
-    public void signOut() {
-        try {
-            init();
-            auth.signOut();
-        } catch (SocialException ignored) {
-            // Sem servidor não há sessão para encerrar.
-        }
+        return services.isConfigured();
     }
 
     // ---------------------------------------------------------------- cartões
@@ -166,8 +77,7 @@ public final class FirebaseSocialBackend implements SocialBackend {
     @Nullable
     @Override
     public UserCard loadCard(String uid) throws SocialException {
-        init();
-        DocumentSnapshot doc = await(users().document(uid).get());
+        DocumentSnapshot doc = await(users().document(uid).get(Source.SERVER));
         return doc.exists() ? cardFrom(doc) : null;
     }
 
@@ -177,7 +87,7 @@ public final class FirebaseSocialBackend implements SocialBackend {
         if (!uid.equals(card.uid)) throw new SocialException(SocialException.Error.NOT_CONNECTED);
         DocumentReference nameRef = usernames().document(card.username);
         DocumentReference userRef = users().document(uid);
-        await(db.runTransaction(tx -> {
+        await(db().runTransaction(tx -> {
             DocumentSnapshot existing = tx.get(nameRef);
             if (existing.exists() && !uid.equals(existing.getString("uid"))) {
                 throw new FirebaseFirestoreException("@" + card.username + " já é de outra conta",
@@ -196,7 +106,7 @@ public final class FirebaseSocialBackend implements SocialBackend {
     public void publish(PublicProfile profile) throws SocialException {
         String uid = requireUid();
         if (!uid.equals(profile.card.uid)) throw new SocialException(SocialException.Error.NOT_CONNECTED);
-        WriteBatch batch = db.batch();
+        WriteBatch batch = db().batch();
         batch.set(users().document(uid), cardData(profile.card));
         batch.set(profiles().document(uid), profileData(profile));
         await(batch.commit());
@@ -206,7 +116,7 @@ public final class FirebaseSocialBackend implements SocialBackend {
     @Override
     public UserCard findByUsername(String username) throws SocialException {
         requireUid();
-        DocumentSnapshot name = await(usernames().document(username).get());
+        DocumentSnapshot name = await(usernames().document(username).get(Source.SERVER));
         String uid = name.exists() ? name.getString("uid") : null;
         return uid == null ? null : loadCard(uid);
     }
@@ -216,9 +126,9 @@ public final class FirebaseSocialBackend implements SocialBackend {
     @Override
     public FriendsHub loadHub() throws SocialException {
         String uid = requireUid();
-        Task<QuerySnapshot> friendsTask = friendsOf(uid).get();
-        Task<QuerySnapshot> incomingTask = requests().whereEqualTo("to", uid).get();
-        Task<QuerySnapshot> outgoingTask = requests().whereEqualTo("from", uid).get();
+        Task<QuerySnapshot> friendsTask = friendsOf(uid).get(Source.SERVER);
+        Task<QuerySnapshot> incomingTask = requests().whereEqualTo("to", uid).get(Source.SERVER);
+        Task<QuerySnapshot> outgoingTask = requests().whereEqualTo("from", uid).get(Source.SERVER);
 
         List<String> friendIds = new ArrayList<>();
         for (DocumentSnapshot doc : await(friendsTask).getDocuments()) friendIds.add(doc.getId());
@@ -253,7 +163,7 @@ public final class FirebaseSocialBackend implements SocialBackend {
         String uid = requireUid();
         Map<String, Object> since = Collections.singletonMap("since", System.currentTimeMillis());
         // As regras só deixam criar a amizade enquanto o pedido existe: tudo num lote só.
-        WriteBatch batch = db.batch();
+        WriteBatch batch = db().batch();
         batch.set(friendsOf(uid).document(fromUid), since);
         batch.set(friendsOf(fromUid).document(uid), since);
         batch.delete(requests().document(requestId(fromUid, uid)));
@@ -269,7 +179,7 @@ public final class FirebaseSocialBackend implements SocialBackend {
     @Override
     public void removeFriend(String friendUid) throws SocialException {
         String uid = requireUid();
-        WriteBatch batch = db.batch();
+        WriteBatch batch = db().batch();
         batch.delete(friendsOf(uid).document(friendUid));
         batch.delete(friendsOf(friendUid).document(uid));
         await(batch.commit());
@@ -280,8 +190,8 @@ public final class FirebaseSocialBackend implements SocialBackend {
     @Override
     public List<TradeOffer> loadTrades() throws SocialException {
         String uid = requireUid();
-        Task<QuerySnapshot> sentTask = trades().whereEqualTo("from", uid).get();
-        Task<QuerySnapshot> receivedTask = trades().whereEqualTo("to", uid).get();
+        Task<QuerySnapshot> sentTask = trades().whereEqualTo("from", uid).get(Source.SERVER);
+        Task<QuerySnapshot> receivedTask = trades().whereEqualTo("to", uid).get(Source.SERVER);
         List<TradeOffer> list = tradesFrom(await(sentTask));
         list.addAll(tradesFrom(await(receivedTask)));
         list.sort((a, b) -> Long.compare(b.createdAt, a.createdAt));
@@ -302,7 +212,7 @@ public final class FirebaseSocialBackend implements SocialBackend {
         putHero(data, "want", trade.want);
         putHero(data, "offer", trade.offer);
         data.put("status", TRADE_PENDING);
-        data.put("createdAt", System.currentTimeMillis());
+        data.put("createdAt", trade.createdAt);
         await(trades().document(trade.id).set(data));
     }
 
@@ -325,90 +235,48 @@ public final class FirebaseSocialBackend implements SocialBackend {
     @Override
     public PublicProfile loadProfile(String uid) throws SocialException {
         requireUid();
-        Task<DocumentSnapshot> cardTask = users().document(uid).get();
-        Task<DocumentSnapshot> profileTask = profiles().document(uid).get();
+        Task<DocumentSnapshot> cardTask = users().document(uid).get(Source.SERVER);
+        Task<DocumentSnapshot> profileTask = profiles().document(uid).get(Source.SERVER);
         DocumentSnapshot cardDoc = await(cardTask);
         DocumentSnapshot profileDoc = await(profileTask);
         if (!cardDoc.exists() || !profileDoc.exists()) throw new SocialException(SocialException.Error.NOT_FOUND);
         return profileFrom(cardFrom(cardDoc), profileDoc);
     }
 
-    // ---------------------------------------------------------------- conta
-
-    @Override
-    public void changePassword(String email, String currentPassword, String newPassword) throws SocialException {
-        FirebaseUser user = reauthenticate(email, currentPassword);
-        await(user.updatePassword(newPassword));
-    }
-
-    @Override
-    public void deleteAccount(String email, String password) throws SocialException {
-        FirebaseUser user = reauthenticate(email, password);
-        String uid = user.getUid();
-        DocumentSnapshot card = await(users().document(uid).get());
-        QuerySnapshot friends = await(friendsOf(uid).get());
-        QuerySnapshot incoming = await(requests().whereEqualTo("to", uid).get());
-        QuerySnapshot outgoing = await(requests().whereEqualTo("from", uid).get());
-        QuerySnapshot tradesSent = await(trades().whereEqualTo("from", uid).get());
-        QuerySnapshot tradesReceived = await(trades().whereEqualTo("to", uid).get());
-
-        WriteBatch batch = db.batch();
-        for (DocumentSnapshot f : friends.getDocuments()) {
-            batch.delete(friendsOf(f.getId()).document(uid));
-            batch.delete(f.getReference());
-        }
-        for (DocumentSnapshot r : incoming.getDocuments()) batch.delete(r.getReference());
-        for (DocumentSnapshot r : outgoing.getDocuments()) batch.delete(r.getReference());
-        for (DocumentSnapshot t : tradesSent.getDocuments()) batch.delete(t.getReference());
-        for (DocumentSnapshot t : tradesReceived.getDocuments()) batch.delete(t.getReference());
-        batch.delete(profiles().document(uid));
-        String username = card.exists() ? card.getString("username") : null;
-        if (username != null) batch.delete(usernames().document(username));
-        batch.delete(users().document(uid));
-        await(batch.commit());
-        await(user.delete());
-    }
-
-    /** Confirma a senha com o servidor; abre a sessão se ela não estiver aberta nessa conta. */
-    private FirebaseUser reauthenticate(String email, String password) throws SocialException {
-        init();
-        FirebaseUser user = auth.getCurrentUser();
-        if (user != null && email.equalsIgnoreCase(user.getEmail())) {
-            try {
-                Tasks.await(user.reauthenticate(EmailAuthProvider.getCredential(email, password)),
-                        TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                return user;
-            } catch (ExecutionException e) {
-                throw isBadCredentials(e.getCause())
-                        ? new SocialException(SocialException.Error.WRONG_PASSWORD, e) : mapped(e);
-            } catch (InterruptedException | TimeoutException e) {
-                throw mapped(e);
-            }
-        }
-        signIn(email, password, false);
-        FirebaseUser signedIn = auth.getCurrentUser();
-        if (signedIn == null) throw new SocialException(SocialException.Error.NOT_CONNECTED);
-        return signedIn;
-    }
-
     // ---------------------------------------------------------------- apoio
 
     private String requireUid() throws SocialException {
-        init();
-        FirebaseUser user = auth.getCurrentUser();
+        FirebaseUser user = auth().getCurrentUser();
         if (user == null) throw new SocialException(SocialException.Error.NOT_CONNECTED);
         return user.getUid();
     }
 
-    private CollectionReference usernames() { return db.collection("usernames"); }
+    private FirebaseAuth auth() throws SocialException {
+        try {
+            return services.auth();
+        } catch (CloudException e) {
+            throw new SocialException(SocialException.Error.NOT_CONFIGURED, e);
+        }
+    }
 
-    private CollectionReference users() { return db.collection("users"); }
+    /** O Firestore, já ligado: toda operação chama {@link #requireUid()} antes, que o liga. */
+    private FirebaseFirestore db() {
+        try {
+            return services.db();
+        } catch (CloudException e) {
+            throw new IllegalStateException("Firestore sem configuração", e);
+        }
+    }
 
-    private CollectionReference profiles() { return db.collection("profiles"); }
+    private CollectionReference usernames() { return db().collection("usernames"); }
 
-    private CollectionReference requests() { return db.collection("friendRequests"); }
+    private CollectionReference users() { return db().collection("users"); }
 
-    private CollectionReference trades() { return db.collection("trades"); }
+    private CollectionReference profiles() { return db().collection("profiles"); }
+
+    private CollectionReference requests() { return db().collection("friendRequests"); }
+
+    private CollectionReference trades() { return db().collection("trades"); }
 
     private CollectionReference friendsOf(String uid) { return users().document(uid).collection("friends"); }
 
@@ -421,7 +289,8 @@ public final class FirebaseSocialBackend implements SocialBackend {
         for (int i = 0; i < uids.size(); i += IN_QUERY_LIMIT) {
             List<String> chunk = uids.subList(i, Math.min(uids.size(), i + IN_QUERY_LIMIT));
             // Contas excluídas simplesmente não voltam.
-            for (DocumentSnapshot doc : await(users().whereIn(FieldPath.documentId(), chunk).get()).getDocuments()) {
+            QuerySnapshot found = await(users().whereIn(FieldPath.documentId(), chunk).get(Source.SERVER));
+            for (DocumentSnapshot doc : found.getDocuments()) {
                 cards.add(cardFrom(doc));
             }
         }
@@ -541,11 +410,6 @@ public final class FirebaseSocialBackend implements SocialBackend {
         return value instanceof Number ? ((Number) value).longValue() : 0L;
     }
 
-    private static boolean isBadCredentials(Throwable cause) {
-        return cause instanceof FirebaseAuthInvalidCredentialsException
-                || cause instanceof FirebaseAuthInvalidUserException;
-    }
-
     private static <T> T await(Task<T> task) throws SocialException {
         try {
             return Tasks.await(task, TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -561,8 +425,6 @@ public final class FirebaseSocialBackend implements SocialBackend {
         if (cause instanceof TimeoutException || cause instanceof InterruptedException
                 || cause instanceof FirebaseNetworkException) {
             error = SocialException.Error.OFFLINE;
-        } else if (isBadCredentials(cause)) {
-            error = SocialException.Error.WRONG_PASSWORD;
         } else if (cause instanceof FirebaseFirestoreException) {
             switch (((FirebaseFirestoreException) cause).getCode()) {
                 case UNAVAILABLE:
