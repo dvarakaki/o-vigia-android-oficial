@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cartas em leque: a coleção do Colecionador. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="@color/vigia_icon">
+    <path
+        android:pathData="M2.9,8.22 L11.06,4.93 L15.85,16.8 L7.7,20.09 Z"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="butt"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M12.94,4.93 L21.1,8.22 L16.3,20.09 L8.15,16.8 Z"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="butt"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M9,5.4 h6 a1.6,1.6 0 0 1 1.6,1.6 v10.2 a1.6,1.6 0 0 1 -1.6,1.6 h-6 a1.6,1.6 0 0 1 -1.6,-1.6 v-10.2 a1.6,1.6 0 0 1 1.6,-1.6 Z M12,7.9 L12.88,10.19 L15.33,10.32 L13.43,11.86 L14.06,14.23 L12,12.9 L9.94,14.23 L10.57,11.86 L8.67,10.32 L11.12,10.19 Z"
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd" />
+</vector>

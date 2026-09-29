@@ -18,6 +18,7 @@ import androidx.interpolator.view.animation.FastOutSlowInInterpolator;
 
 import com.ovigia.app.databinding.ViewSplashStageBinding;
 import com.ovigia.app.ui.SystemBarInsets;
+import com.ovigia.app.ui.TitleShimmer;
 
 import java.util.ArrayList;
 import java.util.List;

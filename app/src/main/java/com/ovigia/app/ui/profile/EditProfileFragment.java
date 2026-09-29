@@ -36,6 +36,7 @@ import com.ovigia.app.profile.EditProfileUiState;
 import com.ovigia.app.profile.EditProfileUiState.Busy;
 import com.ovigia.app.profile.EditProfileUiState.Status;
 import com.ovigia.app.profile.EditProfileViewModel;
+import com.ovigia.app.ui.ConfirmDialog;
 import com.ovigia.app.ui.SystemBarInsets;
 import com.ovigia.app.ui.home.HomeFragment;
 
@@ -87,7 +88,7 @@ public class EditProfileFragment extends Fragment {
         AppContainer container = ((OVigiaApplication) requireActivity().getApplication()).container();
         viewModel = new ViewModelProvider(this, new EditProfileViewModel.Factory(
                 container.accountStore, container.collectionStore, container.learningStore,
-                container.profileImages,
+                container.achievementsStore, container.profileImages,
                 new OnlineProfile(container.socialRepository, container.socialExecutor),
                 container.socialExecutor, container.ioExecutor, container.mainExecutor))
                 .get(EditProfileViewModel.class);
@@ -97,6 +98,7 @@ public class EditProfileFragment extends Fragment {
         binding.bannerContainer.setOnClickListener(v -> chooseImage(ImageKind.BANNER));
         binding.btnSaveProfile.setOnClickListener(v -> saveProfile());
         binding.btnChangePassword.setOnClickListener(v -> changePassword());
+        binding.newPasswordStrength.attachTo(binding.etNewPassword);
         binding.btnDeleteAccount.setOnClickListener(v -> confirmDelete());
         onDone(binding.etEmail, this::saveProfile);
         onDone(binding.etEmailPassword, this::saveProfile);
@@ -286,13 +288,15 @@ public class EditProfileFragment extends Fragment {
     private void confirmDelete() {
         if (lastState == null || lastState.isBusy()) return;
         DialogDeleteAccountBinding dialog = DialogDeleteAccountBinding.inflate(getLayoutInflater());
-        new MaterialAlertDialogBuilder(requireContext())
-                .setTitle(R.string.edit_delete_confirm_title)
-                .setMessage(R.string.edit_delete_confirm_message)
-                .setView(dialog.getRoot())
-                .setNegativeButton(R.string.action_cancel, null)
-                .setPositiveButton(R.string.edit_delete_account,
-                        (d, which) -> viewModel.deleteAccount(text(dialog.etPassword)))
+        ConfirmDialog.with(requireContext())
+                .icon(R.drawable.ic_delete_forever)
+                .title(R.string.edit_delete_confirm_title)
+                .message(R.string.edit_delete_confirm_message)
+                .extra(dialog.getRoot(), dialog.etPassword)
+                .destructive()
+                .confirm(R.string.edit_delete_account, () -> {
+                    if (viewModel != null) viewModel.deleteAccount(text(dialog.etPassword));
+                })
                 .show();
     }
 
@@ -323,6 +327,7 @@ public class EditProfileFragment extends Fragment {
         if (error == null) return;
         if (error == AccountStore.Error.WEAK_PASSWORD) {
             binding.newPasswordLayout.setError(errorText(error));
+            binding.newPasswordStrength.shakeMissing();
         } else {
             binding.currentPasswordLayout.setError(errorText(error));
         }

@@ -33,6 +33,7 @@ public class SocialRepositoryTest {
     private AccountStore accounts;
     private CollectionStore collection;
     private LearningStore learning;
+    private FakeCredentialVault vault;
     private SocialRepository repository;
 
     @Before
@@ -41,13 +42,14 @@ public class SocialRepositoryTest {
         accounts = new AccountStore(() -> tmp.getRoot().toPath().resolve("accounts.json").toFile(), 1_000);
         collection = new CollectionStore(() -> tmp.getRoot().toPath().resolve("collection.json").toFile());
         learning = new LearningStore(() -> tmp.getRoot().toPath().resolve("learning.json").toFile(), direct);
+        vault = new FakeCredentialVault();
         repository = new SocialRepository(backend, accounts, collection, learning,
-                new FakeProfileImages(tmp.getRoot()), () -> null, direct, () -> 42L);
-        accounts.signUp("Davi", "davi@exemplo.com", "segredo1");
+                new FakeProfileImages(tmp.getRoot()), () -> null, direct, () -> 42L, vault);
+        accounts.signUp("Davi", "davi@exemplo.com", "segredo#1");
     }
 
     private SocialRepository.Session readyAs(String username) throws SocialException {
-        repository.connect("segredo1");
+        repository.connect("segredo#1");
         return repository.claimUsername(username);
     }
 
@@ -55,7 +57,7 @@ public class SocialRepositoryTest {
     public void session_walksTheStepsToOnline() throws SocialException {
         assertEquals(SocialRepository.Status.NEEDS_CONNECTION, repository.session().status);
 
-        SocialRepository.Session connected = repository.connect("segredo1");
+        SocialRepository.Session connected = repository.connect("segredo#1");
         assertEquals(SocialRepository.Status.NEEDS_USERNAME, connected.status);
         assertTrue("conta online criada com o mesmo e-mail", backend.accountExists("davi@exemplo.com"));
         assertNotNull(accounts.currentAccount().cloudUid);
@@ -90,7 +92,7 @@ public class SocialRepositoryTest {
     @Test
     public void takenUsername_isRefused() throws SocialException {
         backend.registerOther("ana@exemplo.com", "senha-ana", "ana", "Ana");
-        repository.connect("segredo1");
+        repository.connect("segredo#1");
         try {
             repository.claimUsername("ana");
             fail("reservou o @usuario de outra conta");
@@ -102,7 +104,7 @@ public class SocialRepositoryTest {
 
     @Test
     public void invalidUsername_neverReachesTheServer() throws SocialException {
-        repository.connect("segredo1");
+        repository.connect("segredo#1");
         try {
             repository.claimUsername("jo");
             fail();
@@ -141,12 +143,12 @@ public class SocialRepositoryTest {
 
         // Outro aparelho: conta local nova com o mesmo e-mail e senha.
         AccountStore otherDevice = new AccountStore(() -> tmp.getRoot().toPath().resolve("other.json").toFile(), 1_000);
-        otherDevice.signUp("Davi", "davi@exemplo.com", "segredo1");
+        otherDevice.signUp("Davi", "davi@exemplo.com", "segredo#1");
         backend.signOut();
         SocialRepository other = new SocialRepository(backend, otherDevice, collection, learning,
                 new FakeProfileImages(tmp.getRoot()), () -> null, direct, () -> 43L);
 
-        SocialRepository.Session session = other.connect("segredo1");
+        SocialRepository.Session session = other.connect("segredo#1");
 
         assertEquals(SocialRepository.Status.READY, session.status);
         assertEquals("davi", otherDevice.currentAccount().username);
@@ -159,7 +161,7 @@ public class SocialRepositoryTest {
     @Test
     public void resumeAfterSignIn_opensTheOnlineSession_soFriendsNeverAskThePasswordAgain() throws SocialException {
         // Conta que nunca conectou: o login já cria a conta online e só falta o @usuario.
-        repository.resumeAfterSignIn(accounts.currentAccount(), "segredo1");
+        repository.resumeAfterSignIn(accounts.currentAccount(), "segredo#1");
         assertTrue("o login cria a conta online", backend.accountExists("davi@exemplo.com"));
         assertEquals(SocialRepository.Status.NEEDS_USERNAME, repository.session().status);
 
@@ -167,19 +169,80 @@ public class SocialRepositoryTest {
         backend.signOut();
         assertEquals(SocialRepository.Status.NEEDS_CONNECTION, repository.session().status);
 
-        repository.resumeAfterSignIn(accounts.currentAccount(), "segredo1");
+        repository.resumeAfterSignIn(accounts.currentAccount(), "segredo#1");
         assertEquals(SocialRepository.Status.READY, repository.session().status);
     }
 
     @Test
-    public void resumeAfterSignIn_withoutNetwork_leavesTheFriendsTabAskingForThePassword() throws SocialException {
+    public void signInWithoutNetwork_finishesTheConnectionLater_withoutAskingThePasswordAgain() throws SocialException {
         readyAs("davi");
         backend.signOut();
         backend.offline = true;
 
-        repository.resumeAfterSignIn(accounts.currentAccount(), "segredo1");
-
+        repository.resumeAfterSignIn(accounts.currentAccount(), "segredo#1");
         assertEquals(SocialRepository.Status.NEEDS_CONNECTION, repository.session().status);
+        assertFalse("a senha digitada no login fica guardada para terminar depois", vault.isEmpty());
+
+        backend.offline = false;
+        SocialRepository.Session resumed = repository.resumePending();
+
+        assertEquals(SocialRepository.Status.READY, resumed.status);
+        assertTrue("conectou: a sessão do servidor assume e o cofre esvazia", vault.isEmpty());
+    }
+
+    @Test
+    public void resumePending_stillOffline_saysOffline_andKeepsThePassword() {
+        repository.resumeAfterSignIn(accounts.currentAccount(), "segredo#1");
+        backend.signOut();
+        backend.offline = true;
+        vault.save(accounts.currentAccount().id, "segredo#1");
+
+        try {
+            repository.resumePending();
+            fail("sem rede não há como conectar");
+        } catch (SocialException e) {
+            assertEquals(SocialException.Error.OFFLINE, e.error);
+        }
+        assertFalse("tenta de novo na próxima", vault.isEmpty());
+    }
+
+    @Test
+    public void resumePending_withAPasswordChangedElsewhere_forgetsIt_andAsks() throws SocialException {
+        readyAs("davi");
+        backend.signOut();
+        backend.offline = true;
+        repository.resumeAfterSignIn(accounts.currentAccount(), "segredo#1");
+        // Enquanto isso, a senha da conta online mudou em outro aparelho.
+        backend.offline = false;
+        backend.signIn("davi@exemplo.com", "segredo#1", false);
+        backend.changePassword("davi@exemplo.com", "segredo#1", "trocada-no-outro");
+        backend.signOut();
+
+        SocialRepository.Session session = repository.resumePending();
+
+        assertEquals(SocialRepository.Status.NEEDS_CONNECTION, session.status);
+        assertTrue("senha que o servidor recusa não fica guardada", vault.isEmpty());
+    }
+
+    @Test
+    public void nothingPending_resumeJustReportsTheSession() throws SocialException {
+        assertEquals(SocialRepository.Status.NEEDS_CONNECTION, repository.resumePending().status);
+        assertEquals("sem senha guardada nem tenta o servidor", 0, backend.signOutCount);
+    }
+
+    @Test
+    public void thePendingPassword_isForgottenOnSignOut_andNeverServesAnotherAccount() {
+        backend.offline = true;
+        repository.resumeAfterSignIn(accounts.currentAccount(), "segredo#1");
+        assertFalse(vault.isEmpty());
+
+        repository.onSignedOut();
+        assertTrue("sair da conta apaga a senha guardada", vault.isEmpty());
+
+        repository.resumeAfterSignIn(accounts.currentAccount(), "segredo#1");
+        accounts.signOut();
+        accounts.signUp("Ana", "ana@exemplo.com", "senha-ana");
+        assertNull("a senha do Davi não serve para a Ana", vault.read(accounts.currentAccount().id));
     }
 
     @Test
@@ -217,7 +280,7 @@ public class SocialRepositoryTest {
         SocialRepository other = new SocialRepository(backend, freshAccounts, freshCollection, freshLearning,
                 freshImages, () -> null, direct, () -> 43L);
 
-        AccountStore.Account recovered = other.recover(" Davi@Exemplo.com ", "segredo1");
+        AccountStore.Account recovered = other.recover(" Davi@Exemplo.com ", "segredo#1");
 
         assertNotNull("conta recuperada do servidor", recovered);
         assertEquals("Davi", recovered.name);
@@ -251,12 +314,12 @@ public class SocialRepositoryTest {
                 new FakeProfileImages(tmp.getRoot()), () -> null, direct, () -> 43L);
 
         assertNull("senha errada não recupera", other.recover("davi@exemplo.com", "errada1"));
-        assertNull("e-mail sem conta online não recupera", other.recover("ninguem@exemplo.com", "segredo1"));
+        assertNull("e-mail sem conta online não recupera", other.recover("ninguem@exemplo.com", "segredo#1"));
         assertNull(freshAccounts.currentAccount());
         assertNull("nenhuma sessão online fica aberta", backend.signedInUid());
 
         backend.offline = true;
-        assertNull("sem rede não recupera", other.recover("davi@exemplo.com", "segredo1"));
+        assertNull("sem rede não recupera", other.recover("davi@exemplo.com", "segredo#1"));
         assertNull(freshAccounts.currentAccount());
     }
 
@@ -266,11 +329,11 @@ public class SocialRepositoryTest {
         backend.signOut();
         accounts.signOut();
 
-        assertNull(repository.recover("davi@exemplo.com", "segredo1"));
+        assertNull(repository.recover("davi@exemplo.com", "segredo#1"));
 
         assertNull("não deixa uma sessão pela metade", accounts.currentAccount());
         assertEquals("a conta deste aparelho continua sendo a mesma",
-                id, accounts.signIn("davi@exemplo.com", "segredo1").account.id);
+                id, accounts.signIn("davi@exemplo.com", "segredo#1").account.id);
     }
 
     @Test
@@ -346,24 +409,24 @@ public class SocialRepositoryTest {
 
         backend.offline = true;
         try {
-            repository.deleteOnlineAccount(account, "segredo1");
+            repository.deleteOnlineAccount(account, "segredo#1");
             fail("sem rede a exclusão deveria parar");
         } catch (SocialException e) {
             assertEquals(SocialException.Error.OFFLINE, e.error);
         }
 
         backend.offline = false;
-        repository.deleteOnlineAccount(account, "segredo1");
+        repository.deleteOnlineAccount(account, "segredo#1");
         assertFalse(backend.accountExists("davi@exemplo.com"));
         // Já apagada: não há mais o que fazer, mas não impede a exclusão local.
-        repository.deleteOnlineAccount(account, "segredo1");
+        repository.deleteOnlineAccount(account, "segredo#1");
     }
 
     @Test
     public void passwordChange_followsToTheOnlineAccount() throws SocialException {
         readyAs("davi");
-        accounts.changePassword("segredo1", "nova-senha");
-        repository.onPasswordChanged(accounts.currentAccount(), "segredo1", "nova-senha");
+        accounts.changePassword("segredo#1", "nova-senha");
+        repository.onPasswordChanged(accounts.currentAccount(), "segredo#1", "nova-senha");
 
         backend.signOut();
         assertEquals(accounts.currentAccount().cloudUid, backend.signIn("davi@exemplo.com", "nova-senha", false));

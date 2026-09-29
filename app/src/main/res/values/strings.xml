@@ -57,6 +57,8 @@
     <string name="profile_open_catalog">Abrir catálogo</string>
     <string name="profile_catalog_more" translatable="false">+%1$d</string>
     <string name="profile_sign_out">Sair da conta</string>
+    <string name="profile_sign_out_confirm_title">Sair da conta?</string>
+    <string name="profile_sign_out_confirm_message">Sua coleção, suas conquistas e seu progresso continuam salvos neste aparelho. Para voltar, é só entrar de novo.</string>
     <string name="profile_signed_out_message">Você saiu da sua conta.</string>
 
     <!-- Amigos -->
@@ -123,13 +125,72 @@
         <item quantity="many">Ver todos os %1$d heróis</item>
         <item quantity="other">Ver todos os %1$d heróis</item>
     </plurals>
-    <string name="friend_profile_hero_locked">Faça o Vigia acertar %1$s para ver a ficha.</string>
     <string name="friend_profile_remove">Desfazer amizade</string>
     <string name="friend_profile_remove_title">Desfazer amizade com %1$s?</string>
     <string name="friend_profile_remove_message">Vocês deixam de ver o perfil um do outro. Dá para mandar um novo pedido depois.</string>
     <string name="friend_profile_remove_confirm">Desfazer</string>
     <string name="friend_profile_not_friends">Vocês não são mais amigos.</string>
     <string name="friend_profile_not_found">Este jogador não tem mais perfil online.</string>
+    <!-- Troca de heróis entre amigos -->
+    <string name="trade_rule">Troca 1 por 1: ninguém perde o seu, cada um ganha o herói do outro.</string>
+    <string name="trade_you_give">Você dá</string>
+    <string name="trade_you_get">Você recebe</string>
+    <string name="trade_you_keep">Você continua com ele</string>
+    <string name="trade_card_title">Trocar heróis</string>
+    <string name="trade_body_nothing_to_get">%1$s não tem nenhum herói que você ainda não tenha.</string>
+    <string name="trade_body_nothing_to_give">Você não tem nenhum herói que %1$s ainda não tenha. Jogue mais para ter o que trocar.</string>
+    <string name="trade_suggestion_label">Sugestão para você pedir</string>
+    <string name="trade_propose">Propor troca</string>
+    <string name="trade_hint_pick">Ou toque num herói que você não tem, lá embaixo, para pedir outro.</string>
+    <string name="trade_propose_title">Troca com %1$s</string>
+    <string name="trade_review_title">Proposta de %1$s</string>
+    <string name="trade_reason_completes">Fecha “%1$s”</string>
+    <string name="trade_reason_advances">Conta para “%1$s”</string>
+    <string name="trade_reason_popular">Um dos mais famosos</string>
+    <string name="trade_reason_for">Bom para %1$s. %2$s</string>
+    <string name="trade_pick_offer">Escolha o que oferecer</string>
+    <string name="trade_pick_offer_note">Só aparecem heróis que %1$s ainda não tem; os primeiros são os que mais ajudam.</string>
+    <string name="trade_pick_get">Catálogo de %1$s</string>
+    <string name="trade_pick_get_note">Escolha qual herói ganhar. Só aparecem os que você ainda não tem.</string>
+    <string name="trade_pick_get_none">Você já tem todos os heróis de %1$s: essa troca não tem o que te dar.</string>
+    <string name="trade_pick_get_partial">Sem conexão com o catálogo de %1$s: por enquanto, só dá para aceitar o herói oferecido.</string>
+    <string name="trade_badge_suggested">Sugerido</string>
+    <string name="trade_badge_offered">Oferecido</string>
+    <string name="trade_badge_requested">Pedido</string>
+    <string name="trade_send">Enviar proposta</string>
+    <string name="trade_accept">Aceitar troca</string>
+    <string name="trade_decline">Recusar troca</string>
+    <string name="trade_cancel">Cancelar proposta</string>
+    <string name="trade_cancel_title">Cancelar esta proposta?</string>
+    <string name="trade_cancel_message">Seu amigo deixa de ver o pedido. Dá para pedir de novo depois.</string>
+    <string name="trade_incoming_title">Propostas de troca (%1$d)</string>
+    <string name="trade_outgoing_title">Trocas enviadas (%1$d)</string>
+    <string name="trade_row_incoming">\@%1$s pediu %2$s</string>
+    <string name="trade_row_incoming_detail">Oferece em troca: %1$s</string>
+    <string name="trade_row_outgoing">Você pediu %1$s a \@%2$s</string>
+    <string name="trade_row_outgoing_detail">Oferecendo %1$s · aguardando resposta</string>
+    <string name="trade_message_sent">Proposta enviada. Seu amigo responde na aba de amigos.</string>
+    <string name="trade_message_canceled">Proposta cancelada.</string>
+    <string name="trade_message_declined">Proposta recusada.</string>
+    <string name="trade_message_invalid">Essa troca não vale mais: alguém já tem o herói. Atualize e tente outra.</string>
+    <string name="trade_message_gone">Essa proposta não existe mais.</string>
+    <string name="trade_message_received">%1$s entrou no seu catálogo (troca com \@%2$s)!</string>
+    <string name="trade_message_see">Ver</string>
+    <plurals name="trade_body_they_have">
+        <item quantity="one">Dá para ganhar %2$d herói de %1$s,</item>
+        <item quantity="many">Dá para ganhar %2$d heróis de %1$s,</item>
+        <item quantity="other">Dá para ganhar %2$d heróis de %1$s,</item>
+    </plurals>
+    <plurals name="trade_body_you_have">
+        <item quantity="one">e você tem %1$d para oferecer.</item>
+        <item quantity="many">e você tem %1$d para oferecer.</item>
+        <item quantity="other">e você tem %1$d para oferecer.</item>
+    </plurals>
+    <plurals name="trade_message_received_many">
+        <item quantity="one">%d herói entrou no seu catálogo por troca!</item>
+        <item quantity="many">%d heróis entraram no seu catálogo por troca!</item>
+        <item quantity="other">%d heróis entraram no seu catálogo por troca!</item>
+    </plurals>
 
     <!-- Conquistas -->
     <string name="achievements_title">Conquistas</string>
@@ -137,29 +198,33 @@
     <string name="achievement_count" translatable="false">%1$d / %2$d</string>
     <string name="achievement_cd_unlocked">%1$s, desbloqueada. %2$s %3$d de %4$d.</string>
     <string name="achievement_cd_locked">%1$s, ainda bloqueada. %2$s %3$d de %4$d.</string>
-    <string name="achievement_first_hero">Primeiro da coleção</string>
+    <string name="achievement_unlocked_common">Conquista desbloqueada</string>
+    <string name="achievement_unlocked_rare">Conquista rara desbloqueada</string>
+    <string name="achievement_unlocked_legendary">Conquista lendária desbloqueada</string>
+    <string name="achievement_unlocked_cd">%1$s. %2$s. %3$s</string>
+    <string name="achievement_first_hero">Com grandes poderes…</string>
     <string name="achievement_first_hero_desc">Desbloqueie seu primeiro herói.</string>
-    <string name="achievement_heroes_10">Colecionador</string>
+    <string name="achievement_heroes_10">O Colecionador</string>
     <string name="achievement_heroes_10_desc">Desbloqueie 10 heróis.</string>
-    <string name="achievement_heroes_25">Arquivista</string>
+    <string name="achievement_heroes_25">Arquivos secretos</string>
     <string name="achievement_heroes_25_desc">Desbloqueie 25 heróis.</string>
-    <string name="achievement_heroes_50">Guardião do Multiverso</string>
+    <string name="achievement_heroes_50">Loucura no multiverso</string>
     <string name="achievement_heroes_50_desc">Desbloqueie 50 heróis.</string>
     <string name="achievement_avengers_5">Vingadores, avante!</string>
     <string name="achievement_avengers_5_desc">Desbloqueie 5 Vingadores.</string>
-    <string name="achievement_xmen_5">Escola Xavier</string>
+    <string name="achievement_xmen_5">Mutante e orgulhoso</string>
     <string name="achievement_xmen_5_desc">Desbloqueie 5 X-Men.</string>
-    <string name="achievement_guardians_3">Eu sou Groot</string>
+    <string name="achievement_guardians_3">Eu sou o Groot</string>
     <string name="achievement_guardians_3_desc">Desbloqueie 3 Guardiões da Galáxia.</string>
-    <string name="achievement_fantastic_four">Quarteto completo</string>
+    <string name="achievement_fantastic_four">Reunião de família</string>
     <string name="achievement_fantastic_four_desc">Desbloqueie 4 membros do Quarteto Fantástico.</string>
-    <string name="achievement_villains_5">Lado sombrio</string>
+    <string name="achievement_villains_5">Eu tenho um exército</string>
     <string name="achievement_villains_5_desc">Desbloqueie 5 vilões.</string>
-    <string name="achievement_games_10">Frequentador</string>
+    <string name="achievement_games_10">Sessão da tarde</string>
     <string name="achievement_games_10_desc">Jogue 10 partidas.</string>
-    <string name="achievement_games_50">Maratonista</string>
+    <string name="achievement_games_50">Ultimato</string>
     <string name="achievement_games_50_desc">Jogue 50 partidas.</string>
-    <string name="achievement_beat_watcher">Enganei o Vigia</string>
+    <string name="achievement_beat_watcher">Quase nada escapa</string>
     <string name="achievement_beat_watcher_desc">Vença o Vigia uma vez.</string>
     <string name="achievement_beat_watcher_10">Mestre dos disfarces</string>
     <string name="achievement_beat_watcher_10_desc">Vença o Vigia 10 vezes.</string>
@@ -172,15 +237,21 @@
     <string name="auth_hint_name">Nome</string>
     <string name="auth_hint_email">E-mail</string>
     <string name="auth_hint_password">Senha</string>
-    <string name="auth_password_helper">Mínimo de 6 caracteres</string>
     <string name="auth_submit_sign_in">Entrar</string>
     <string name="auth_submit_sign_up">Criar conta</string>
     <string name="auth_reason_unlock">Entre para desbloquear %1$s no seu catálogo.</string>
-    <string name="auth_local_note">Sua conta e seu catálogo ficam salvos neste aparelho. Para jogar com amigos, conecte a conta na aba de amigos.</string>
     <string name="auth_error_name_required">Informe seu nome.</string>
     <string name="auth_error_invalid_email">Informe um e-mail válido.</string>
     <string name="auth_error_email_in_use">Já existe uma conta com esse e-mail.</string>
-    <string name="auth_error_weak_password">A senha precisa ter pelo menos 6 caracteres.</string>
+    <string name="auth_error_weak_password">A senha precisa ter pelo menos 8 caracteres e um caractere especial.</string>
+    <string name="password_rule_length">Pelo menos %1$d caracteres</string>
+    <string name="password_rule_special">Um caractere especial (! @ # $ …)</string>
+    <string name="password_rule_met">%1$s: cumprido</string>
+    <string name="password_rule_pending">%1$s: falta</string>
+    <string name="password_strength_weak">Fraca</string>
+    <string name="password_strength_medium">Quase lá</string>
+    <string name="password_strength_strong">Forte</string>
+    <string name="password_length_count" translatable="false">%1$d/%2$d</string>
     <string name="auth_error_wrong_credentials">E-mail ou senha incorretos.</string>
 
     <!-- Resultado da partida -->
@@ -343,7 +414,11 @@
     <string name="settings_language_system">Automático (idioma do aparelho)</string>
     <string name="settings_section_game">Partida</string>
     <string name="settings_haptics">Vibrar ao responder</string>
-    <string name="settings_haptics_summary">Um toque leve confirma cada resposta.</string>
+    <string name="settings_haptics_summary">Um pulso confirma cada resposta, na força que você escolher.</string>
+    <string name="settings_haptics_strength">Intensidade</string>
+    <string name="settings_haptics_level">Nível %1$d de %2$d</string>
+    <string name="settings_haptics_min">Suave</string>
+    <string name="settings_haptics_max">Máxima</string>
     <string name="settings_keep_screen_on">Manter a tela ligada</string>
     <string name="settings_keep_screen_on_summary">A tela não apaga enquanto você pensa na resposta.</string>
     <string name="settings_section_data">Dados</string>

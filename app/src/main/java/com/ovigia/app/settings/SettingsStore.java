@@ -45,6 +45,12 @@ public final class SettingsStore {
         return state.hapticFeedback;
     }
 
+    /** Força da vibração, quando ela está ligada. */
+    public synchronized HapticStrength hapticStrength() {
+        ensureLoaded();
+        return HapticStrength.of(state.hapticLevel);
+    }
+
     /** A tela não apaga durante a partida. */
     public synchronized boolean keepScreenOn() {
         ensureLoaded();
@@ -56,6 +62,17 @@ public final class SettingsStore {
             ensureLoaded();
             if (state.hapticFeedback == enabled) return;
             state.hapticFeedback = enabled;
+        }
+        persistAsync();
+    }
+
+    /** Nível da barra, de {@link HapticStrength#MIN_LEVEL} a {@link HapticStrength#MAX_LEVEL}. */
+    public void setHapticLevel(int level) {
+        int clamped = HapticStrength.clamp(level);
+        synchronized (this) {
+            ensureLoaded();
+            if (state.hapticLevel == clamped) return;
+            state.hapticLevel = clamped;
         }
         persistAsync();
     }
@@ -103,6 +120,8 @@ public final class SettingsStore {
      */
     private static final class State {
         boolean hapticFeedback = true;
+        /** Fora da faixa (arquivo mexido) vale o nível mais próximo: ver {@link HapticStrength#of}. */
+        int hapticLevel = HapticStrength.DEFAULT_LEVEL;
         boolean keepScreenOn = true;
     }
 }

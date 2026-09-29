@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Popup de confirmação (sair da conta, excluir a conta): ícone num disco, título,
+  explicação, um espaço opcional para um campo (a senha, na exclusão) e os dois
+  botões empilhados — a ação em cima, "Cancelar" embaixo. Montado por
+  com.ovigia.app.ui.ConfirmDialog.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingTop="28dp"
+    android:paddingBottom="20dp">
+
+    <FrameLayout
+        android:id="@+id/iconDisc"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:background="@drawable/bg_dialog_icon"
+        android:importantForAccessibility="no">
+
+        <ImageView
+            android:id="@+id/imageIcon"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            tools:src="@drawable/ic_logout"
+            tools:tint="@color/vigia_gold" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:accessibilityHeading="true"
+        android:gravity="center"
+        android:textColor="@color/white"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        tools:text="Sair da conta?" />
+
+    <TextView
+        android:id="@+id/tvMessage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:lineSpacingExtra="2dp"
+        android:textColor="@color/white_70"
+        android:textSize="14sp"
+        tools:text="Seu progresso continua salvo neste aparelho." />
+
+    <!-- Conteúdo extra (ex.: o campo de senha da exclusão); some quando não há. -->
+    <FrameLayout
+        android:id="@+id/extra"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:visibility="gone" />
+
+    <!-- A ação: azul para uma saída comum, vermelha para o que não tem volta (só uma aparece). -->
+    <Button
+        android:id="@+id/btnConfirm"
+        style="@style/Widget.OVigia.Button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        tools:text="Sair" />
+
+    <Button
+        android:id="@+id/btnConfirmDanger"
+        style="@style/Widget.OVigia.Button.DangerFilled"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:visibility="gone"
+        tools:text="Excluir conta" />
+
+    <Button
+        android:id="@+id/btnCancel"
+        style="@style/Widget.OVigia.Button.Outlined"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="@string/action_cancel" />
+</LinearLayout>

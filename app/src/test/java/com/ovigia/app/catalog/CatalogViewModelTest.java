@@ -44,7 +44,7 @@ public class CatalogViewModelTest {
         accounts = new AccountStore(() -> new File(tmp.getRoot(), "accounts.json"), 1_000);
         collection = new CollectionStore(() -> new File(tmp.getRoot(), "collection.json"));
         roster = new FakeRoster();
-        accounts.signUp("Ana", "ana@b.com", "segredo1");
+        accounts.signUp("Ana", "ana@b.com", "segredo#1");
     }
 
     private CatalogViewModel started() {
@@ -147,7 +147,7 @@ public class CatalogViewModelTest {
     public void unlocksBelongToTheAccount() {
         unlock(1, "Hulk");
         accounts.signOut();
-        accounts.signUp("Bia", "bia@b.com", "segredo2");
+        accounts.signUp("Bia", "bia@b.com", "segredo#2");
         assertEquals(0, started().state().getValue().unlockedCount);
     }
 

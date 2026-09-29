@@ -47,8 +47,8 @@ public class FriendProfileViewModelTest {
         LearningStore learning = new LearningStore(() -> tmp.getRoot().toPath().resolve("learning.json").toFile(), direct);
         repository = new SocialRepository(backend, accounts, collection, learning,
                 new FakeProfileImages(tmp.getRoot()), () -> null, direct, () -> 1L);
-        accounts.signUp("Davi", "davi@exemplo.com", "segredo1");
-        repository.connect("segredo1");
+        accounts.signUp("Davi", "davi@exemplo.com", "segredo#1");
+        repository.connect("segredo#1");
         me = repository.claimUsername("davi").card;
 
         ana = backend.registerOther("ana@exemplo.com", "senha-ana", "ana", "Ana");

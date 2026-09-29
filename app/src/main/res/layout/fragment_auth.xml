@@ -106,7 +106,7 @@
 
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/nameLayout"
-                    style="@style/Widget.OVigia.TextField"
+                    style="@style/Widget.OVigia.TextField.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
@@ -127,7 +127,7 @@
 
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/emailLayout"
-                    style="@style/Widget.OVigia.TextField"
+                    style="@style/Widget.OVigia.TextField.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
@@ -145,7 +145,7 @@
 
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/passwordLayout"
-                    style="@style/Widget.OVigia.TextField"
+                    style="@style/Widget.OVigia.TextField.Card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
@@ -162,6 +162,15 @@
                         android:inputType="textPassword"
                         android:maxLines="1" />
                 </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Só no cadastro: a senha nova é conferida enquanto o jogador digita. -->
+                <com.ovigia.app.ui.auth.PasswordStrengthView
+                    android:id="@+id/passwordStrength"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:paddingHorizontal="6dp"
+                    android:visibility="gone" />
 
                 <FrameLayout
                     android:layout_width="match_parent"
@@ -186,15 +195,6 @@
                         app:indicatorSize="28dp" />
                 </FrameLayout>
 
-                <TextView
-                    android:id="@+id/tvLocalNote"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:gravity="center"
-                    android:text="@string/auth_local_note"
-                    android:textColor="@color/white_70"
-                    android:textSize="13sp" />
             </LinearLayout>
         </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.core.widget.NestedScrollView>

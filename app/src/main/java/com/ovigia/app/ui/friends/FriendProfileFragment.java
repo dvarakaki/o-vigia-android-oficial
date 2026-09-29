@@ -29,19 +29,23 @@ import com.ovigia.app.profile.PlayerRank;
 import com.ovigia.app.social.FriendProfileUiState;
 import com.ovigia.app.social.FriendProfileUiState.Status;
 import com.ovigia.app.social.FriendProfileViewModel;
+import com.ovigia.app.social.FriendProfileViewModel.TradeMessage;
 import com.ovigia.app.social.PublicProfile;
 import com.ovigia.app.social.SocialException;
+import com.ovigia.app.social.TradeOffer;
+import com.ovigia.app.social.TradeSuggestions;
+import com.ovigia.app.ui.ConfirmDialog;
 import com.ovigia.app.ui.FadeNavOptions;
 import com.ovigia.app.ui.Motion;
 import com.ovigia.app.ui.RelativeTime;
 import com.ovigia.app.ui.SystemBarInsets;
+import com.ovigia.app.ui.achievements.AchievementViews;
 import com.ovigia.app.ui.catalog.HeroDetailFragment;
 
-import java.util.Set;
-
 /**
- * Perfil de um amigo: identidade, título, números, conquistas e heróis
- * desbloqueados. Heróis que o jogador também desbloqueou abrem a ficha.
+ * Perfil de um amigo: identidade, título, números, troca de heróis, conquistas
+ * e heróis desbloqueados. Heróis que o jogador também desbloqueou abrem a ficha;
+ * os que ele não tem abrem a troca pedindo aquele herói.
  */
 public class FriendProfileFragment extends Fragment {
 
@@ -58,6 +62,8 @@ public class FriendProfileFragment extends Fragment {
     private boolean showAllHeroes = false;
     private boolean showAllAchievements = false;
     private boolean entered = false;
+    /** Gaveta da troca aberta, espelhando {@code state.proposal}. */
+    @Nullable private TradeSheet tradeSheet;
 
     public FriendProfileFragment() {
         super(R.layout.fragment_friend_profile);
@@ -95,14 +101,21 @@ public class FriendProfileFragment extends Fragment {
             FriendProfileUiState state = viewModel.state().getValue();
             if (state != null && state.profile != null) {
                 AchievementViews.fill(binding.achievementsList, binding.btnAllAchievements,
-                        state.profile.achievements, true);
+                        state.profile.achievements, true, motion);
             }
         });
         binding.btnAllHeroes.setOnClickListener(v -> {
             showAllHeroes = true;
             FriendProfileUiState state = viewModel.state().getValue();
-            if (state != null && state.profile != null) renderHeroes(state.profile, state.myUnlockedIds);
+            if (state != null && state.profile != null) renderHeroes(state);
         });
+        View.OnClickListener proposeSuggested = v -> {
+            FriendProfileUiState state = viewModel.state().getValue();
+            TradeSuggestions.Pick want = state == null ? null : state.suggestedWant();
+            if (want != null) viewModel.startProposal(want.hero.characterId);
+        };
+        binding.btnProposeTrade.setOnClickListener(proposeSuggested);
+        binding.tradeSuggestion.setOnClickListener(proposeSuggested);
 
         viewModel.state().observe(getViewLifecycleOwner(), this::render);
         viewModel.removeFailures().observe(getViewLifecycleOwner(), event -> {
@@ -110,6 +123,10 @@ public class FriendProfileFragment extends Fragment {
             if (error == null) return;
             Snackbar.make(binding.getRoot(), error == SocialException.Error.OFFLINE
                     ? R.string.friends_error_offline : R.string.friends_error_generic, Snackbar.LENGTH_SHORT).show();
+        });
+        viewModel.tradeMessages().observe(getViewLifecycleOwner(), event -> {
+            TradeMessage message = event.consume();
+            if (message != null) Snackbar.make(binding.getRoot(), tradeMessageText(message), Snackbar.LENGTH_SHORT).show();
         });
         viewModel.start();
     }
@@ -124,6 +141,9 @@ public class FriendProfileFragment extends Fragment {
     @Override
     public void onDestroyView() {
         motion.cancelAll();
+        // A proposta continua no ViewModel: a gaveta volta ao recriar a tela.
+        if (tradeSheet != null) tradeSheet.dismissQuietly();
+        tradeSheet = null;
         super.onDestroyView();
         binding = null;
     }
@@ -149,6 +169,7 @@ public class FriendProfileFragment extends Fragment {
     }
 
     private void render(FriendProfileUiState state) {
+        renderTradeSheet(state);
         if (state.status == Status.REMOVED) {
             if (isCurrent()) nav().popBackStack();
             return;
@@ -197,14 +218,118 @@ public class FriendProfileFragment extends Fragment {
 
         binding.btnRemoveFriend.setEnabled(!state.removing);
         binding.btnRemoveFriend.setText(state.removing ? R.string.action_saving : R.string.friend_profile_remove);
-        renderHeroes(profile, state.myUnlockedIds);
+        renderTradeCard(state);
+        renderHeroes(state);
 
         if (!entered) {
             entered = true;
             motion.popIn(binding.avatarFrame, 60);
             motion.staggerIn(140, binding.tvName, binding.tvUsername, binding.tvBio, binding.tvUpdated,
-                    binding.rankCard, binding.statsRow, binding.achievementsCard, binding.heroesGrid,
-                    binding.btnRemoveFriend);
+                    binding.rankCard, binding.statsRow, binding.tradeCard, binding.achievementsCard,
+                    binding.heroesGrid, binding.btnRemoveFriend);
+        }
+    }
+
+    // ---------------------------------------------------------------- troca
+
+    /** O que dá para trocar com o amigo e a sugestão da vez. */
+    private void renderTradeCard(FriendProfileUiState state) {
+        PublicProfile profile = state.profile;
+        String friend = profile.card.name;
+        int theyHave = state.wantPicks.size();
+        int iHave = state.offerPicks.size();
+        String body;
+        if (theyHave == 0) {
+            body = getString(R.string.trade_body_nothing_to_get, friend);
+        } else if (iHave == 0) {
+            body = getString(R.string.trade_body_nothing_to_give, friend);
+        } else {
+            body = getResources().getQuantityString(R.plurals.trade_body_they_have, theyHave, friend, theyHave)
+                    + " " + getResources().getQuantityString(R.plurals.trade_body_you_have, iHave, iHave);
+        }
+        binding.tvTradeBody.setText(body);
+
+        TradeSuggestions.Pick suggestion = iHave == 0 ? null : state.suggestedWant();
+        binding.tradeSuggestion.setVisibility(suggestion != null ? View.VISIBLE : View.GONE);
+        binding.btnProposeTrade.setVisibility(suggestion != null ? View.VISIBLE : View.GONE);
+        binding.tvTradeHint.setVisibility(suggestion != null ? View.VISIBLE : View.GONE);
+        if (suggestion == null) return;
+        String name = TradeSheet.heroName(requireContext(), suggestion.hero);
+        binding.tvSuggestionName.setText(name);
+        String reason = TradeSheet.reasonText(requireContext(), suggestion);
+        binding.tvSuggestionReason.setText(reason);
+        binding.tvSuggestionReason.setVisibility(reason != null ? View.VISIBLE : View.GONE);
+        binding.tradeSuggestion.setContentDescription(getString(R.string.trade_suggestion_label) + ": " + name
+                + (reason != null ? ". " + reason : ""));
+        Glide.with(this)
+                .load(suggestion.hero.imageUrl)
+                .placeholder(R.color.vigia_panel_solid)
+                .error(R.drawable.ic_character_placeholder)
+                .centerCrop()
+                .into(binding.imageSuggestion);
+    }
+
+    /** Abre, atualiza ou fecha a gaveta conforme {@code state.proposal}. */
+    private void renderTradeSheet(FriendProfileUiState state) {
+        FriendProfileUiState.Proposal proposal = state.status == Status.READY ? state.proposal : null;
+        if (proposal == null || state.profile == null) {
+            if (tradeSheet != null) tradeSheet.dismissQuietly();
+            tradeSheet = null;
+            return;
+        }
+        if (tradeSheet == null) {
+            tradeSheet = new TradeSheet(this, new TradeSheet.Actions() {
+                @Override public void onPick(int heroId) { viewModel.chooseOffer(heroId); }
+                @Override public void onConfirm() { viewModel.sendProposal(); }
+                @Override public void onSecondary() { viewModel.closeProposal(); }
+                @Override public void onClosed() {
+                    tradeSheet = null;
+                    viewModel.closeProposal();
+                }
+            });
+        }
+        String friend = state.profile.card.name;
+        TradeSuggestions.Pick offer = state.offerPick(proposal.offerId);
+        TradeSheet.Model model = new TradeSheet.Model();
+        model.title = getString(R.string.trade_propose_title, friend);
+        model.give = offer == null ? null : offer.hero;
+        model.get = proposal.want.hero;
+        String forFriend = TradeSheet.reasonText(requireContext(), offer);
+        model.giveReason = forFriend == null ? null : getString(R.string.trade_reason_for, friend, forFriend);
+        model.getReason = TradeSheet.reasonText(requireContext(), proposal.want);
+        model.pickerTitle = getString(R.string.trade_pick_offer);
+        model.pickerNote = state.offerPicks.isEmpty()
+                ? getString(R.string.trade_body_nothing_to_give, friend)
+                : getString(R.string.trade_pick_offer_note, friend);
+        model.picks = state.offerPicks;
+        model.selectedId = proposal.offerId;
+        model.badgeId = state.offerPicks.isEmpty() ? -1 : state.offerPicks.get(0).hero.characterId;
+        model.badgeText = getString(R.string.trade_badge_suggested);
+        model.busy = proposal.sending;
+        model.confirmEnabled = offer != null;
+        model.confirmText = R.string.trade_send;
+        model.secondaryText = R.string.action_cancel;
+        tradeSheet.bind(model);
+    }
+
+    private void confirmCancelProposal(TradeOffer trade) {
+        ConfirmDialog.with(requireContext())
+                .icon(R.drawable.ic_swap)
+                .title(R.string.trade_cancel_title)
+                .message(R.string.trade_cancel_message)
+                .confirm(R.string.trade_cancel, () -> viewModel.cancelProposal(trade.id))
+                .show();
+    }
+
+    @StringRes
+    private static int tradeMessageText(TradeMessage message) {
+        switch (message) {
+            case PROPOSAL_SENT: return R.string.trade_message_sent;
+            case PROPOSAL_CANCELED: return R.string.trade_message_canceled;
+            case TRADE_INVALID: return R.string.trade_message_invalid;
+            case FAILED_OFFLINE: return R.string.friends_error_offline;
+            case FAILED:
+            default: return R.string.friends_error_generic;
         }
     }
 
@@ -215,7 +340,8 @@ public class FriendProfileFragment extends Fragment {
     }
 
     /** Grade de cartas em linhas, com quantas colunas couberem. */
-    private void renderHeroes(PublicProfile profile, Set<Integer> myUnlockedIds) {
+    private void renderHeroes(FriendProfileUiState state) {
+        PublicProfile profile = state.profile;
         int total = profile.heroes.size();
         binding.tvHeroesCount.setText(String.valueOf(total));
         binding.tvHeroesEmpty.setVisibility(total == 0 ? View.VISIBLE : View.GONE);
@@ -247,7 +373,7 @@ public class FriendProfileFragment extends Fragment {
             int margin = getResources().getDimensionPixelSize(R.dimen.friend_hero_card_margin);
             params.setMargins(margin, margin, margin, margin);
             row.addView(card.getRoot(), params);
-            bindHero(card, hero, myUnlockedIds.contains(hero.characterId));
+            bindHero(card, hero, state);
         }
         // Completa a última linha para as cartas manterem a largura.
         if (row != null) {
@@ -258,13 +384,25 @@ public class FriendProfileFragment extends Fragment {
         }
     }
 
-    private void bindHero(ItemCatalogHeroBinding card, PublicProfile.Hero hero, boolean alsoMine) {
+    private void bindHero(ItemCatalogHeroBinding card, PublicProfile.Hero hero, FriendProfileUiState state) {
+        boolean alsoMine = state.myUnlockedIds.contains(hero.characterId);
+        TradeOffer sent = alsoMine ? null : state.sentTradeFor(hero.characterId);
+        TradeSuggestions.Pick suggested = state.suggestedWant();
         String name = hero.name != null ? hero.name : getString(R.string.profile_unknown_character);
         card.lockedOverlay.setVisibility(View.GONE);
         card.tvName.setText(name);
         card.card.setStrokeColor(ContextCompat.getColor(requireContext(),
                 alsoMine ? R.color.vigia_gold_soft : R.color.white_10));
-        card.card.setContentDescription(name);
+        String badge = null;
+        if (sent != null) {
+            badge = getString(R.string.trade_badge_requested);
+        } else if (!alsoMine && !state.offerPicks.isEmpty() && suggested != null
+                && suggested.hero.characterId == hero.characterId) {
+            badge = getString(R.string.trade_badge_suggested);
+        }
+        card.tvBadge.setVisibility(badge != null ? View.VISIBLE : View.GONE);
+        card.tvBadge.setText(badge);
+        card.card.setContentDescription(badge == null ? name : name + ", " + badge);
         Glide.with(this)
                 .load(hero.imageUrl)
                 .placeholder(R.color.vigia_panel_solid)
@@ -278,9 +416,11 @@ public class FriendProfileFragment extends Fragment {
                 Bundle args = new Bundle();
                 args.putInt(HeroDetailFragment.ARG_CHARACTER_ID, hero.characterId);
                 nav().navigate(R.id.heroDetailFragment, args, FadeNavOptions.builder().build());
+            } else if (sent != null) {
+                confirmCancelProposal(sent);
             } else {
-                Snackbar.make(binding.getRoot(), getString(R.string.friend_profile_hero_locked, name),
-                        Snackbar.LENGTH_SHORT).show();
+                // Não tem: pede numa troca (a gaveta explica se não houver o que oferecer).
+                viewModel.startProposal(hero.characterId);
             }
         });
     }

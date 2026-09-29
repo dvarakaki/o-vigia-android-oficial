@@ -21,6 +21,17 @@
         app:navGraph="@navigation/nav_main" />
 
     <!--
+      Conquistas: o cartão da comemoração fica por cima de qualquer tela, e só
+      é inflado quando a primeira conquista cai — ver
+      com.ovigia.app.ui.achievements.AchievementStage.
+    -->
+    <ViewStub
+        android:id="@+id/achievementStage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout="@layout/view_achievement_stage" />
+
+    <!--
       Abertura: o palco da splash só é inflado no primeiro desenho e sai da
       hierarquia quando a cena acaba — ver com.ovigia.app.ui.splash.SplashStage.
     -->

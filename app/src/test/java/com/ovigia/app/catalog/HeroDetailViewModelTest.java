@@ -45,7 +45,7 @@ public class HeroDetailViewModelTest {
         collection = new CollectionStore(() -> new File(tmp.getRoot(), "collection.json"));
         details = new FakeDetails();
         translations = new FakeHeroTranslations();
-        accounts.signUp("Ana", "ana@b.com", "segredo1");
+        accounts.signUp("Ana", "ana@b.com", "segredo#1");
     }
 
     private HeroDetailViewModel started(int id) {

@@ -36,13 +36,14 @@ import com.ovigia.app.learning.LearningStore.Outcome;
 import com.ovigia.app.profile.PlayerRank;
 import com.ovigia.app.profile.ProfileUiState;
 import com.ovigia.app.profile.ProfileViewModel;
+import com.ovigia.app.ui.ConfirmDialog;
 import com.ovigia.app.ui.FadeNavOptions;
 import com.ovigia.app.ui.Motion;
 import com.ovigia.app.ui.RelativeTime;
 import com.ovigia.app.ui.SystemBarInsets;
+import com.ovigia.app.ui.achievements.AchievementViews;
 import com.ovigia.app.ui.auth.AuthFragment;
 import com.ovigia.app.ui.catalog.HeroDetailFragment;
-import com.ovigia.app.ui.friends.AchievementViews;
 import com.ovigia.app.ui.home.HomeFragment;
 
 import java.util.Collections;
@@ -108,7 +109,8 @@ public class ProfileFragment extends Fragment {
             achievementsExpanded = true;
             ProfileUiState current = viewModel.state().getValue();
             if (current != null) {
-                AchievementViews.fill(binding.achievementsList, binding.btnAllAchievements, current.achievements, true);
+                AchievementViews.fill(binding.achievementsList, binding.btnAllAchievements, current.achievements,
+                        true, motion);
             }
         });
 
@@ -119,12 +121,22 @@ public class ProfileFragment extends Fragment {
                 container::rosterCatalog, container.ioExecutor, container.mainExecutor)).get(ProfileViewModel.class);
         binding.btnSignOut.setOnClickListener(v -> {
             if (signOutRequested) return;
-            signOutRequested = true;
-            viewModel.signOut();
-            container.socialExecutor.execute(container.socialRepository::onSignedOut);
+            ConfirmDialog.with(requireContext())
+                    .icon(R.drawable.ic_logout)
+                    .title(R.string.profile_sign_out_confirm_title)
+                    .message(R.string.profile_sign_out_confirm_message)
+                    .confirm(R.string.profile_sign_out, () -> {
+                        // O popup pode ter ficado aberto enquanto a tela saía (ou o jogador tocou duas vezes).
+                        if (signOutRequested || binding == null) return;
+                        signOutRequested = true;
+                        viewModel.signOut();
+                        container.socialExecutor.execute(container.socialRepository::onSignedOut);
+                    })
+                    .show();
         });
         // O que aparece aqui é o que os amigos veem: mantém a versão online em dia.
         container.socialRepository.publishQuietly();
+        container.achievements.sync();
         viewModel.state().observe(getViewLifecycleOwner(), this::render);
         viewModel.start();
 

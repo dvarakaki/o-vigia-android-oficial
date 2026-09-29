@@ -323,8 +323,7 @@
                             android:layout_marginTop="12dp"
                             android:hint="@string/edit_hint_new_password"
                             app:endIconMode="password_toggle"
-                            app:endIconTint="@color/white_70"
-                            app:helperText="@string/auth_password_helper">
+                            app:endIconTint="@color/white_70">
 
                             <com.google.android.material.textfield.TextInputEditText
                                 android:id="@+id/etNewPassword"
@@ -335,6 +334,14 @@
                                 android:inputType="textPassword"
                                 android:maxLines="1" />
                         </com.google.android.material.textfield.TextInputLayout>
+
+                        <!-- A senha nova segue a mesma regra do cadastro, conferida ao vivo. -->
+                        <com.ovigia.app.ui.auth.PasswordStrengthView
+                            android:id="@+id/newPasswordStrength"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:paddingHorizontal="6dp" />
 
                         <Button
                             android:id="@+id/btnChangePassword"

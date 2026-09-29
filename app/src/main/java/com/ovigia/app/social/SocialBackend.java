@@ -2,6 +2,8 @@ package com.ovigia.app.social;
 
 import androidx.annotation.Nullable;
 
+import java.util.List;
+
 /**
  * Servidor dos amigos online. A implementação real é o
  * {@link FirebaseSocialBackend}; os testes usam um falso em memória.
@@ -54,12 +56,27 @@ public interface SocialBackend {
 
     void removeFriend(String friendUid) throws SocialException;
 
+    /** Propostas de troca em que a conta conectada está, de um lado ou do outro, em qualquer status. */
+    List<TradeOffer> loadTrades() throws SocialException;
+
+    /** Grava a proposta ({@code trade.from} precisa ser a conta conectada; o status é ignorado). */
+    void proposeTrade(TradeOffer trade) throws SocialException;
+
+    /**
+     * Aceita a proposta {@code tradeId} feita à conta conectada, trocando o herói
+     * oferecido por {@code chosenOffer} (o mesmo, ou outro do catálogo de quem propôs).
+     */
+    void acceptTrade(String tradeId, PublicProfile.Hero chosenOffer) throws SocialException;
+
+    /** Apaga a proposta (recusar, cancelar, ou concluir depois de aceita). */
+    void deleteTrade(String tradeId) throws SocialException;
+
     /** Perfil completo de um amigo (ou da própria conta). */
     PublicProfile loadProfile(String uid) throws SocialException;
 
     /** Troca a senha da conta online, confirmando a atual. */
     void changePassword(String email, String currentPassword, String newPassword) throws SocialException;
 
-    /** Apaga amizades, pedidos, perfil, @usuario e a conta online. */
+    /** Apaga amizades, pedidos, trocas, perfil, @usuario e a conta online. */
     void deleteAccount(String email, String password) throws SocialException;
 }

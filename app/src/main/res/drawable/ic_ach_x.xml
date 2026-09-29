@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- X: o brasão dos mutantes, de pontas largas. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="@color/vigia_icon">
+    <path
+        android:pathData="M11.93,13.48 L17.94,21.62 L21.62,17.94 L13.48,11.93 Z M10.52,11.93 L2.38,17.94 L6.06,21.62 L12.07,13.48 Z M12.07,10.52 L6.06,2.38 L2.38,6.06 L10.52,12.07 Z M13.48,12.07 L21.62,6.06 L17.94,2.38 L11.93,10.52 Z"
+        android:fillColor="#FF000000" />
+</vector>

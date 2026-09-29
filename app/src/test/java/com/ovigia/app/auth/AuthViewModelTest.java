@@ -39,7 +39,7 @@ public class AuthViewModelTest {
         assertEquals(AuthUiState.Mode.SIGN_IN, vm.state().getValue().mode);
 
         vm.setMode(AuthUiState.Mode.SIGN_UP);
-        vm.submit("Ana", "ana@b.com", "segredo1");
+        vm.submit("Ana", "ana@b.com", "segredo#1");
 
         Event<AccountStore.Account> event = vm.signedIn().getValue();
         assertNotNull(event);
@@ -51,7 +51,7 @@ public class AuthViewModelTest {
 
     @Test
     public void wrongPassword_reportsErrorAndStaysSignedOut() {
-        store.signUp("Ana", "ana@b.com", "segredo1");
+        store.signUp("Ana", "ana@b.com", "segredo#1");
         store.signOut();
 
         // A conta está aqui: só a senha está errada, não adianta procurar no servidor.
@@ -72,7 +72,7 @@ public class AuthViewModelTest {
                 (email, password) -> store.restore("Davi", email, password, "vigia", "uid-1", email, "davi").account);
         AuthViewModel vm = new AuthViewModel(store, direct, direct, direct, online);
 
-        vm.submit("", "davi@exemplo.com", "segredo1");
+        vm.submit("", "davi@exemplo.com", "segredo#1");
 
         Event<AccountStore.Account> event = vm.signedIn().getValue();
         assertNotNull("entrar com um e-mail já cadastrado traz a conta de volta", event);
@@ -88,7 +88,7 @@ public class AuthViewModelTest {
         RecordingOnline online = new RecordingOnline((email, password) -> null);
         AuthViewModel vm = new AuthViewModel(store, direct, direct, direct, online);
 
-        vm.submit("", "davi@exemplo.com", "segredo1");
+        vm.submit("", "davi@exemplo.com", "segredo#1");
 
         assertEquals(AccountStore.Error.WRONG_CREDENTIALS, vm.state().getValue().error);
         assertNull(vm.signedIn().getValue());
@@ -97,17 +97,17 @@ public class AuthViewModelTest {
 
     @Test
     public void signIn_reopensTheOnlineSessionWithTheTypedPassword() {
-        store.signUp("Ana", "ana@b.com", "segredo1");
+        store.signUp("Ana", "ana@b.com", "segredo#1");
         store.signOut();
         RecordingOnline online = new RecordingOnline((email, password) -> {
             throw new AssertionError("conta local existe: não recupera do servidor");
         });
         AuthViewModel vm = new AuthViewModel(store, direct, direct, direct, online);
 
-        vm.submit("", "ana@b.com", "segredo1");
+        vm.submit("", "ana@b.com", "segredo#1");
 
         assertEquals("Ana", online.resumedAccount.name);
-        assertEquals("segredo1", online.resumedPassword);
+        assertEquals("segredo#1", online.resumedPassword);
     }
 
     private interface Recovery {

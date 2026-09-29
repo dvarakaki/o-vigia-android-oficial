@@ -1,7 +1,12 @@
 package com.ovigia.app.ui.auth;
 
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.transition.AutoTransition;
+import android.transition.TransitionManager;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 
@@ -44,6 +49,8 @@ public class AuthFragment extends Fragment {
 
     private FragmentAuthBinding binding;
     private AuthViewModel viewModel;
+    /** Modo mostrado na tela; {@code null} antes do primeiro render (que não anima). */
+    @Nullable private AuthUiState.Mode shownMode;
 
     public AuthFragment() {
         super(R.layout.fragment_auth);
@@ -73,6 +80,17 @@ public class AuthFragment extends Fragment {
             viewModel.setMode(checkedId == R.id.btnModeSignUp ? AuthUiState.Mode.SIGN_UP : AuthUiState.Mode.SIGN_IN);
         });
         binding.btnSubmit.setOnClickListener(v -> submit());
+        binding.passwordStrength.attachTo(binding.etPassword);
+        binding.etPassword.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                // Voltou a digitar: o aviso da tentativa anterior sai, a verificação ao vivo assume.
+                if (binding != null) binding.passwordLayout.setError(null);
+            }
+        });
         binding.etPassword.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId != EditorInfo.IME_ACTION_DONE) return false;
             submit();
@@ -90,6 +108,7 @@ public class AuthFragment extends Fragment {
     public void onDestroyView() {
         super.onDestroyView();
         binding = null;
+        shownMode = null;
     }
 
     private NavController nav() {
@@ -109,8 +128,15 @@ public class AuthFragment extends Fragment {
         boolean signUp = state.mode == AuthUiState.Mode.SIGN_UP;
         binding.modeToggle.check(signUp ? R.id.btnModeSignUp : R.id.btnModeSignIn);
         binding.tvTitle.setText(signUp ? R.string.auth_title_sign_up : R.string.auth_title_sign_in);
+        if (shownMode != null && shownMode != state.mode) {
+            // Trocar entre entrar e criar conta: o nome e a verificação da senha abrem e fecham deslizando.
+            TransitionManager.beginDelayedTransition((ViewGroup) binding.passwordStrength.getParent(),
+                    new AutoTransition().setDuration(220));
+        }
+        shownMode = state.mode;
         binding.nameLayout.setVisibility(signUp ? View.VISIBLE : View.GONE);
-        binding.passwordLayout.setHelperText(signUp ? getString(R.string.auth_password_helper) : null);
+        // A verificação é só do cadastro: quem já tem conta entra com a senha que tiver.
+        binding.passwordStrength.setVisibility(signUp ? View.VISIBLE : View.GONE);
 
         binding.btnSubmit.setText(state.loading ? null
                 : getString(signUp ? R.string.auth_submit_sign_up : R.string.auth_submit_sign_in));
@@ -136,6 +162,8 @@ public class AuthFragment extends Fragment {
                 break;
             case WEAK_PASSWORD:
                 binding.passwordLayout.setError(getString(R.string.auth_error_weak_password));
+                // O que falta treme na lista logo abaixo.
+                binding.passwordStrength.shakeMissing();
                 break;
             case WRONG_CREDENTIALS:
             default:
@@ -153,6 +181,9 @@ public class AuthFragment extends Fragment {
     private void onSignedIn() {
         WindowCompat.getInsetsController(requireActivity().getWindow(), requireView())
                 .hide(WindowInsetsCompat.Type.ime());
+        // Entrou: as conquistas que a conta já tinha viram o marco zero dela, e as
+        // próximas é que rendem comemoração.
+        ((OVigiaApplication) requireActivity().getApplication()).container().achievements.sync();
         NavController nav = nav();
         int next = requireArguments().getInt(ARG_NEXT_DESTINATION, 0);
         if (next != 0) {

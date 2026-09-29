@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ampulheta: a maratona até o ultimato. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="@color/vigia_icon">
+    <path
+        android:pathData="M6.2,2 h11.6 a1,1 0 0 1 1,1 v0.2 a1,1 0 0 1 -1,1 h-11.6 a1,1 0 0 1 -1,-1 v-0.2 a1,1 0 0 1 1,-1 Z"
+        android:fillColor="#FF000000" />
+    <path
+        android:pathData="M6.2,19.8 h11.6 a1,1 0 0 1 1,1 v0.2 a1,1 0 0 1 -1,1 h-11.6 a1,1 0 0 1 -1,-1 v-0.2 a1,1 0 0 1 1,-1 Z"
+        android:fillColor="#FF000000" />
+    <path
+        android:pathData="M7.0,4.2 C7.0,8.6 12,10.6 12,12 C12,13.4 7.0,15.4 7.0,19.8 M17,4.2 C17,8.6 12,10.6 12,12 C12,13.4 17,15.4 17,19.8"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M8.7,19.0 C9.2,16.2 10.8,14.6 12,13.6 C13.2,14.6 14.8,16.2 15.3,19.0 Z"
+        android:fillColor="#FF000000" />
+    <path
+        android:pathData="M12,5.9 C12,7.6 13.6,8.6 14.6,9.2 H9.4 C10.4,8.6 12,7.6 12,5.9 Z"
+        android:fillColor="#FF000000" />
+</vector>

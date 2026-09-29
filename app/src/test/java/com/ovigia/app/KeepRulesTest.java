@@ -44,6 +44,8 @@ public class KeepRulesTest {
             "com.ovigia.app.collection.CollectionStore$State",
             "com.ovigia.app.learning.LearningStore$State",
             "com.ovigia.app.settings.SettingsStore$State",
+            "com.ovigia.app.social.AchievementsStore$State",
+            "com.ovigia.app.social.KeystoreCredentialVault$Sealed",
             "com.ovigia.app.translation.CachedHeroTranslationRepository$Cache",
             "com.ovigia.app.data.roster.RosterCatalog$Document",
             "com.ovigia.app.model.Character",

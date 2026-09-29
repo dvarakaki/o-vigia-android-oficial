@@ -43,6 +43,13 @@
         <item name="rippleColor">@color/white_10</item>
     </style>
 
+    <!-- Confirmação de ação destrutiva (popup de excluir a conta): vermelho preenchido. -->
+    <style name="Widget.OVigia.Button.DangerFilled">
+        <item name="backgroundTint">@color/button_danger_background</item>
+        <item name="android:textColor">@color/button_danger_text</item>
+        <item name="rippleColor">@color/white_20</item>
+    </style>
+
     <!-- Ação de texto dourada ("Ver todos", "Ler biografia completa"). -->
     <style name="Widget.OVigia.TextAction" parent="Widget.Material3.Button.TextButton">
         <item name="android:textColor">@color/vigia_gold</item>
@@ -94,6 +101,50 @@
     <style name="Widget.OVigia.TextField" parent="Widget.Material3.TextInputLayout.OutlinedBox">
         <item name="boxStrokeColor">@color/text_field_stroke</item>
         <item name="hintTextColor">@color/vigia_gold</item>
+    </style>
+
+    <!--
+      Campo com cara de card: mesmo raio, fundo e fio dos cards. É o das caixas de busca (amigos e
+      catálogo), do login e da senha na exclusão da conta.
+    -->
+    <style name="Widget.OVigia.TextField.Card">
+        <item name="shapeAppearance">@style/ShapeAppearance.OVigia.Card</item>
+        <item name="boxBackgroundColor">@color/vigia_panel</item>
+        <item name="boxStrokeColor">@color/search_field_stroke</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="boxStrokeWidthFocused">1.5dp</item>
+    </style>
+
+    <!--
+      Avisos na base da tela ("Você saiu da sua conta"): o Snackbar do M3 é claro e quase quadrado,
+      e destoava do resto; aqui ele vira um card escuro arredondado, com a ação em dourado.
+    -->
+    <style name="Widget.OVigia.Snackbar" parent="Widget.Material3.Snackbar">
+        <item name="shapeAppearance">@style/ShapeAppearance.OVigia.Card</item>
+        <item name="backgroundTint">@color/vigia_dialog</item>
+    </style>
+
+    <style name="Widget.OVigia.Snackbar.TextView" parent="Widget.Material3.Snackbar.TextView">
+        <item name="android:alpha">1</item>
+        <item name="android:textColor">@color/white</item>
+    </style>
+
+    <style name="Widget.OVigia.Snackbar.Button" parent="Widget.Material3.Button.TextButton.Snackbar">
+        <item name="android:textColor">@color/vigia_gold</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- Cantos dos cards (bg_card_dashboard): o que imita um card usa este mesmo raio. -->
+    <style name="ShapeAppearance.OVigia.Card" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">20dp</item>
+    </style>
+
+    <!-- Miniatura de herói nas linhas de troca da aba de amigos. -->
+    <style name="ShapeAppearance.OVigia.TradeThumb" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">8dp</item>
     </style>
 
     <!-- Ícones de barra: alvo de toque de 48dp (mínimo de acessibilidade). -->
@@ -168,6 +219,31 @@
         <item name="thumbTint">@color/switch_thumb</item>
         <item name="trackTint">@color/switch_track</item>
         <item name="trackDecorationTint">@color/switch_track_decoration</item>
+    </style>
+
+    <!--
+      Barra de níveis das configurações: a bolinha clássica (o Slider "Legacy"), dourada,
+      num trilho com uma marca por nível. O balão acima da bolinha mostra o número enquanto
+      o jogador arrasta.
+    -->
+    <style name="Widget.OVigia.Slider" parent="Widget.Material3.Slider.Legacy">
+        <item name="thumbColor">@color/slider_active</item>
+        <item name="thumbRadius">11dp</item>
+        <item name="thumbElevation">2dp</item>
+        <item name="haloColor">@color/vigia_gold_bg</item>
+        <item name="haloRadius">22dp</item>
+        <item name="trackHeight">6dp</item>
+        <item name="trackColorActive">@color/slider_active</item>
+        <item name="trackColorInactive">@color/white_10</item>
+        <item name="tickColorActive">@color/slider_tick_active</item>
+        <item name="tickColorInactive">@color/white_20</item>
+        <item name="labelStyle">@style/Widget.OVigia.Slider.Label</item>
+    </style>
+
+    <style name="Widget.OVigia.Slider.Label" parent="Widget.Material3.Slider.Legacy.Label">
+        <item name="backgroundTint">@color/vigia_gold</item>
+        <item name="android:textColor">@color/vigia_space</item>
+        <item name="android:textStyle">bold</item>
     </style>
 
     <style name="TextAppearance.OVigia.SettingTitle" parent="TextAppearance.Material3.BodyLarge">

@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Palco da conquista: o cartão que desce do topo quando uma conquista cai, por
+  cima de qualquer tela (ver com.ovigia.app.ui.achievements.AchievementStage).
+
+  Só o cartão recebe toque — o resto do palco deixa passar, para o jogador
+  continuar mexendo na tela que está por baixo enquanto a festa acontece. As
+  camadas de luz (raios, estouro e onda) são maiores que o medalhão e escapam
+  do cartão de propósito: por isso o clipChildren desligado até a raiz.
+
+  Decorativo para o TalkBack: o anúncio é feito pelo palco, com o texto inteiro
+  de uma vez, em vez de deixar um cartão de três segundos virar alvo de foco.
+-->
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/achievementStageRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipChildren="false"
+    android:importantForAccessibility="noHideDescendants">
+
+    <LinearLayout
+        android:id="@+id/card"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/bg_achievement_card"
+        android:baselineAligned="false"
+        android:clickable="true"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:elevation="12dp"
+        android:focusable="false"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="12dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintWidth_max="@dimen/content_max_width">
+
+        <!-- Medalhão: o emblema da conquista no disco dourado, com a luz por trás. -->
+        <FrameLayout
+            android:id="@+id/medalFrame"
+            android:layout_width="@dimen/achievement_medal"
+            android:layout_height="@dimen/achievement_medal"
+            android:clipChildren="false"
+            android:importantForAccessibility="no">
+
+            <ImageView
+                android:id="@+id/rays"
+                android:layout_width="@dimen/achievement_rays"
+                android:layout_height="@dimen/achievement_rays"
+                android:layout_gravity="center"
+                android:alpha="0"
+                android:importantForAccessibility="no"
+                android:src="@drawable/splash_rays" />
+
+            <ImageView
+                android:id="@+id/burst"
+                android:layout_width="@dimen/achievement_burst"
+                android:layout_height="@dimen/achievement_burst"
+                android:layout_gravity="center"
+                android:alpha="0"
+                android:importantForAccessibility="no"
+                android:src="@drawable/splash_flash" />
+
+            <ImageView
+                android:id="@+id/shockwave"
+                android:layout_width="@dimen/achievement_medal"
+                android:layout_height="@dimen/achievement_medal"
+                android:layout_gravity="center"
+                android:alpha="0"
+                android:importantForAccessibility="no"
+                android:src="@drawable/splash_ring" />
+
+            <!-- O medalhão em si: é ele que gira e cresce ao assentar. -->
+            <FrameLayout
+                android:id="@+id/medal"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_achievement_icon"
+                android:importantForAccessibility="no">
+
+                <ImageView
+                    android:id="@+id/imageIcon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_gravity="center"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_trophy"
+                    app:tint="@color/vigia_gold"
+                    tools:src="@drawable/ic_ach_shield" />
+            </FrameLayout>
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvKicker"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:letterSpacing="0.12"
+                android:maxLines="1"
+                android:textAllCaps="true"
+                android:textColor="@color/vigia_gold"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                tools:text="@string/achievement_unlocked_legendary" />
+
+            <TextView
+                android:id="@+id/tvTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/white"
+                android:textSize="17sp"
+                android:textStyle="bold"
+                tools:text="Loucura no multiverso" />
+
+            <TextView
+                android:id="@+id/tvDescription"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:textColor="@color/white_70"
+                android:textSize="13sp"
+                tools:text="Desbloqueie 50 heróis." />
+        </LinearLayout>
+    </LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

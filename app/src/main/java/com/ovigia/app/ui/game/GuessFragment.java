@@ -54,12 +54,12 @@ public class GuessFragment extends GameFragment {
 
         panel.btnSim.setOnClickListener(v -> {
             if (!isCurrentDestination(R.id.guessFragment)) return;
-            answerFeedback(v);
+            answerFeedback();
             viewModel.confirmGuess();
         });
         panel.btnNao.setOnClickListener(v -> {
             if (!isCurrentDestination(R.id.guessFragment)) return;
-            answerFeedback(v);
+            answerFeedback();
             viewModel.rejectGuess();
             nav().navigate(R.id.continueFragment, null, GameNavigator.overQuestions());
         });

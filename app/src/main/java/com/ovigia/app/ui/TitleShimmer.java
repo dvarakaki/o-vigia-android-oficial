@@ -1,4 +1,4 @@
-package com.ovigia.app.ui.splash;
+package com.ovigia.app.ui;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -12,8 +12,9 @@ import android.widget.TextView;
 import androidx.core.graphics.ColorUtils;
 
 /**
- * A luz que atravessa a marca: uma faixa dourada passa uma vez por "O Vigia",
- * da esquerda para a direita, como um reflexo correndo sobre metal.
+ * A luz que atravessa um texto: uma faixa dourada passa uma vez da esquerda
+ * para a direita, como um reflexo correndo sobre metal. É o que acende a marca
+ * na abertura do app e o nome da conquista quando ela cai.
  *
  * Cada palavra recebe um gradiente que vai da sua própria cor até a cor da luz
  * e volta — fora da faixa o {@link Shader.TileMode#CLAMP} devolve a cor de
@@ -24,7 +25,7 @@ import androidx.core.graphics.ColorUtils;
  * O shader só é montado quando a animação começa, e é retirado no fim: fora
  * desse meio segundo o título é desenhado do jeito normal.
  */
-final class TitleShimmer {
+public final class TitleShimmer {
 
     /** Cor da faixa de luz: o dourado do app, bem claro. */
     private static final int LIGHT = 0xFFF6DE9A;
@@ -37,7 +38,7 @@ final class TitleShimmer {
      * Uma varredura de ponta a ponta das {@code words} (que precisam ser irmãs
      * no mesmo pai, como as duas do {@code view_title}).
      */
-    static Animator sweep(long durationMs, TextView... words) {
+    public static Animator sweep(long durationMs, TextView... words) {
         final LinearGradient[] shaders = new LinearGradient[words.length];
         final Matrix matrix = new Matrix();
         // Medido só quando a animação começa: [0] é onde a faixa entra, [1] o

@@ -37,7 +37,12 @@ public final class AccountStore {
 
     /** Iterações padrão do PBKDF2: lento o bastante para atrapalhar força bruta, rápido para o jogador. */
     public static final int DEFAULT_ITERATIONS = 120_000;
-    static final int MIN_PASSWORD_LENGTH = 6;
+    /**
+     * Mínimo das senhas antigas, de antes da {@link PasswordRules}: só vale ao
+     * recriar neste aparelho uma conta que já existia no servidor, cuja senha
+     * foi aceita com a regra da época.
+     */
+    static final int LEGACY_MIN_PASSWORD_LENGTH = 6;
     public static final int MAX_NAME_LENGTH = 40;
     public static final int MAX_BIO_LENGTH = 120;
     private static final int SALT_BYTES = 16;
@@ -95,7 +100,7 @@ public final class AccountStore {
         Error nameError = validateName(cleanName);
         if (nameError != null) return Result.failure(nameError);
         if (!EMAIL.matcher(cleanEmail).matches()) return Result.failure(Error.INVALID_EMAIL);
-        if (password == null || password.length() < MIN_PASSWORD_LENGTH) return Result.failure(Error.WEAK_PASSWORD);
+        if (!PasswordRules.isStrong(password)) return Result.failure(Error.WEAK_PASSWORD);
         if (findByEmail(cleanEmail) != null) return Result.failure(Error.EMAIL_IN_USE);
 
         StoredAccount stored = new StoredAccount();
@@ -138,7 +143,10 @@ public final class AccountStore {
         ensureLoaded();
         String cleanEmail = normalizeEmail(email);
         if (!EMAIL.matcher(cleanEmail).matches()) return Result.failure(Error.INVALID_EMAIL);
-        if (password == null || password.length() < MIN_PASSWORD_LENGTH) return Result.failure(Error.WEAK_PASSWORD);
+        // Senha que o servidor já aceitou: pode ser de antes da regra atual.
+        if (password == null || password.length() < LEGACY_MIN_PASSWORD_LENGTH) {
+            return Result.failure(Error.WEAK_PASSWORD);
+        }
         if (findByEmail(cleanEmail) != null) return Result.failure(Error.EMAIL_IN_USE);
 
         StoredAccount stored = new StoredAccount();
@@ -206,7 +214,7 @@ public final class AccountStore {
         StoredAccount stored = findById(state.currentAccountId);
         if (stored == null) return Result.failure(Error.NOT_SIGNED_IN);
         if (!passwordMatches(stored, currentPassword)) return Result.failure(Error.WRONG_PASSWORD);
-        if (newPassword == null || newPassword.length() < MIN_PASSWORD_LENGTH) return Result.failure(Error.WEAK_PASSWORD);
+        if (!PasswordRules.isStrong(newPassword)) return Result.failure(Error.WEAK_PASSWORD);
 
         setPassword(stored, newPassword);
         persist();

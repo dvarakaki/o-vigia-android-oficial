@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Conquista: troféu (dourado quando desbloqueada), nome, como conseguir e progresso. -->
+<!--
+  Conquista na lista do perfil: o emblema dela (dourado quando desbloqueada,
+  apagado quando não), o nome, como conseguir e o progresso. O selo de certo no
+  canto do emblema só aparece nas que já caíram.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
@@ -25,7 +29,21 @@
             android:layout_gravity="center"
             android:importantForAccessibility="no"
             android:src="@drawable/ic_trophy"
-            app:tint="@color/vigia_gold" />
+            app:tint="@color/vigia_gold"
+            tools:src="@drawable/ic_ach_shield" />
+
+        <ImageView
+            android:id="@+id/imageCheck"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_gravity="bottom|end"
+            android:background="@drawable/bg_achievement_check"
+            android:importantForAccessibility="no"
+            android:padding="3dp"
+            android:src="@drawable/ic_check"
+            android:visibility="gone"
+            app:tint="@color/vigia_gold"
+            tools:visibility="visible" />
     </FrameLayout>
 
     <LinearLayout

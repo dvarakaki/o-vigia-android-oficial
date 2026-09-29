@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Disco atrás do ícone do popup; a cor muda em código (dourado para sair, vermelho para excluir). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="@color/vigia_gold_bg" />
+</shape>

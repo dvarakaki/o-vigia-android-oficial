@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dossiê com selo: os arquivos secretos do elenco. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="@color/vigia_icon">
+    <path
+        android:pathData="M3.4,4.4 H9.4 L11.8,6.8 H20.6 A1.8,1.8 0 0 1 22.4,8.6 V17.8 A1.8,1.8 0 0 1 20.6,19.6 H3.4 A1.8,1.8 0 0 1 1.6,17.8 V6.2 A1.8,1.8 0 0 1 3.4,4.4 Z M12,9.8 L12.91,12.15 L15.42,12.29 L13.47,13.88 L14.12,16.31 L12,14.95 L9.88,16.31 L10.53,13.88 L8.58,12.29 L11.09,12.15 Z"
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd" />
+</vector>

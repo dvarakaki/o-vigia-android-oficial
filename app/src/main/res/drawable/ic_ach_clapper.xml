@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Claquete: a sessão vai começar. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="@color/vigia_icon">
+    <path
+        android:pathData="M1.54,2.84 L21.39,0.4 L22.05,5.76 L2.2,8.2 Z M4.32,2.5 L6.5,2.23 L4.09,7.97 L1.9,8.24 Z M9.88,1.82 L12.06,1.55 L9.64,7.29 L7.46,7.55 Z M15.44,1.13 L17.62,0.87 L15.2,6.6 L13.02,6.87 Z"
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd" />
+    <path
+        android:pathData="M3.8,9.4 h16.4 a1.9,1.9 0 0 1 1.9,1.9 v7.4 a1.9,1.9 0 0 1 -1.9,1.9 h-16.4 a1.9,1.9 0 0 1 -1.9,-1.9 v-7.4 a1.9,1.9 0 0 1 1.9,-1.9 Z"
+        android:fillColor="#FF000000" />
+</vector>

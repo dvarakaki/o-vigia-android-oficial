@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bolinha e trilho preenchido da barra de intensidade: dourados, apagados com a vibração desligada. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/white_50" android:state_enabled="false" />
+    <item android:color="@color/vigia_gold" />
+</selector>

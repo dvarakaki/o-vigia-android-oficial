@@ -74,7 +74,7 @@ public class QuestionsFragment extends GameFragment {
         button.setOnClickListener(v -> {
             if (SystemClock.uptimeMillis() - questionShownAt < ANSWER_COOLDOWN_MS) return;
             if (!isCurrentDestination(R.id.questionsFragment)) return;
-            answerFeedback(v);
+            answerFeedback();
             viewModel.answer(answer);
         });
     }

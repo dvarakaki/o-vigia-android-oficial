@@ -12,6 +12,10 @@
     <!-- Azul legível sobre o painel escuro (legendas e gráficos). -->
     <color name="vigia_blue_light">#FF5B8CFF</color>
     <color name="vigia_danger">#FFFF6B6B</color>
+    <!-- Verde de "tudo certo" (senha forte): o único verde do app, só para confirmação. -->
+    <color name="vigia_success">#FF4CD98A</color>
+    <!-- Fundo translúcido do vermelho (disco do ícone de exclusão). -->
+    <color name="vigia_danger_bg">#26FF6B6B</color>
     <color name="vigia_gold">#FFE8C468</color>
     <color name="vigia_panel">#CC0B1330</color>
     <!-- Painel opaco: cartas com imagem não deixam o fundo vazar pelos cantos. -->

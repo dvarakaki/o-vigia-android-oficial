@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Aba de amigos. Antes de ficar online, um cartão só guia o jogador (conectar a
-  conta → escolher o @usuario). Depois: cartão da conta, busca por @usuario,
-  pedidos recebidos, amigos e pedidos enviados.
+  conta → escolher o @usuario). Depois: cartão da conta, propostas de troca
+  recebidas, busca por @usuario, pedidos recebidos, amigos, pedidos enviados e
+  trocas enviadas.
 -->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -293,6 +294,20 @@
                         </LinearLayout>
                     </LinearLayout>
 
+                    <!-- Propostas de troca recebidas: o que chega primeiro. -->
+                    <TextView
+                        android:id="@+id/tvTradesInTitle"
+                        style="@style/Widget.OVigia.SectionTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        tools:text="Propostas de troca (1)" />
+
+                    <LinearLayout
+                        android:id="@+id/tradesInList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+
                     <!-- Adicionar por @usuario -->
                     <TextView
                         style="@style/Widget.OVigia.SectionTitle"
@@ -302,7 +317,7 @@
 
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/searchLayout"
-                        style="@style/Widget.OVigia.TextField"
+                        style="@style/Widget.OVigia.TextField.Card"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:hint="@string/friends_search_hint"
@@ -406,6 +421,20 @@
 
                     <LinearLayout
                         android:id="@+id/outgoingList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+
+                    <!-- Trocas enviadas -->
+                    <TextView
+                        android:id="@+id/tvTradesOutTitle"
+                        style="@style/Widget.OVigia.SectionTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        tools:text="Trocas enviadas (1)" />
+
+                    <LinearLayout
+                        android:id="@+id/tradesOutList"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical" />

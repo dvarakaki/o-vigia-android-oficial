@@ -42,7 +42,7 @@ public class SettingsViewModelTest {
         settings = new SettingsStore(() -> new File(tmp.getRoot(), "settings.json"), direct);
         learningStore = new LearningStore(() -> new File(tmp.getRoot(), "learning.json"), direct);
         accountStore = new AccountStore(() -> new File(tmp.getRoot(), "accounts.json"), 1_000);
-        accountStore.signUp("Davi", "davi@exemplo.com", "segredo1");
+        accountStore.signUp("Davi", "davi@exemplo.com", "segredo#1");
         accountId = accountStore.currentAccount().id;
         cache = new FakeCache(2048);
     }
@@ -81,12 +81,43 @@ public class SettingsViewModelTest {
     }
 
     @Test
+    public void hapticStrength_isLoaded_andSavedToTheStore() {
+        settings.setHapticLevel(2);
+        SettingsViewModel vm = newViewModel(direct);
+        vm.start();
+        assertEquals(2, vm.state().getValue().hapticLevel);
+
+        vm.setHapticLevel(10);
+
+        assertEquals(10, vm.state().getValue().hapticLevel);
+        assertEquals(10, settings.hapticStrength().level);
+    }
+
+    @Test
+    public void hapticStrength_withVibrationOff_staysWhereItWas() {
+        SettingsViewModel vm = newViewModel(direct);
+        vm.start();
+        vm.setHapticFeedback(false);
+
+        vm.setHapticLevel(10);
+
+        assertEquals(HapticStrength.DEFAULT_LEVEL, vm.state().getValue().hapticLevel);
+        assertEquals(HapticStrength.DEFAULT_LEVEL, settings.hapticStrength().level);
+
+        vm.setHapticFeedback(true);
+        assertEquals("religar volta no nível guardado", HapticStrength.DEFAULT_LEVEL,
+                vm.state().getValue().hapticLevel);
+    }
+
+    @Test
     public void toggles_beforeLoading_areIgnored() {
         SettingsViewModel vm = newViewModel(direct);
 
         vm.setHapticFeedback(false);
+        vm.setHapticLevel(10);
 
         assertTrue(settings.hapticFeedback());
+        assertEquals(HapticStrength.DEFAULT_LEVEL, settings.hapticStrength().level);
     }
 
     @Test

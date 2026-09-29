@@ -5,6 +5,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
@@ -19,29 +20,40 @@ import androidx.navigation.NavController;
 import androidx.navigation.NavDestination;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.bumptech.glide.Glide;
 import com.google.android.material.snackbar.Snackbar;
 import com.ovigia.app.AppContainer;
 import com.ovigia.app.OVigiaApplication;
 import com.ovigia.app.R;
 import com.ovigia.app.databinding.FragmentFriendsBinding;
 import com.ovigia.app.databinding.ItemFriendRowBinding;
+import com.ovigia.app.databinding.ItemTradeRowBinding;
 import com.ovigia.app.social.FriendRequest;
 import com.ovigia.app.social.FriendsHub;
 import com.ovigia.app.social.FriendsUiState;
+import com.ovigia.app.social.FriendsUiState.HeroReceived;
 import com.ovigia.app.social.FriendsUiState.Status;
+import com.ovigia.app.social.FriendsUiState.TradeReview;
 import com.ovigia.app.social.FriendsViewModel;
+import com.ovigia.app.social.PublicProfile;
 import com.ovigia.app.social.SocialException;
+import com.ovigia.app.social.TradeOffer;
+import com.ovigia.app.social.TradeSuggestions;
 import com.ovigia.app.social.UserCard;
 import com.ovigia.app.social.Username;
 import com.ovigia.app.ui.FadeNavOptions;
 import com.ovigia.app.ui.Motion;
 import com.ovigia.app.ui.SystemBarInsets;
 import com.ovigia.app.ui.auth.AuthFragment;
+import com.ovigia.app.ui.catalog.HeroDetailFragment;
+
+import java.util.List;
 
 /**
  * Aba de amigos. Leva a conta até ficar online (senha → @usuario) e depois
- * mostra busca por @usuario, pedidos recebidos, amigos e pedidos enviados.
- * Tocar num amigo abre o {@link FriendProfileFragment}.
+ * mostra propostas de troca recebidas, busca por @usuario, pedidos recebidos,
+ * amigos, pedidos enviados e trocas enviadas. Tocar num amigo abre o
+ * {@link FriendProfileFragment}; tocar numa proposta abre a gaveta da troca.
  */
 public class FriendsFragment extends Fragment {
 
@@ -51,6 +63,9 @@ public class FriendsFragment extends Fragment {
     /** Status da última renderização: a troca de passo anima a entrada do cartão. */
     private Status shownStatus;
     private int rowIconPadding;
+    /** Gaveta da troca aberta, espelhando {@code state.review}. */
+    @Nullable private TradeSheet tradeSheet;
+    private AppContainer container;
 
     public FriendsFragment() {
         super(R.layout.fragment_friends);
@@ -63,7 +78,7 @@ public class FriendsFragment extends Fragment {
         SystemBarInsets.padTop(view);
         rowIconPadding = getResources().getDimensionPixelSize(R.dimen.avatar_row_icon_padding);
 
-        AppContainer container = ((OVigiaApplication) requireActivity().getApplication()).container();
+        container = ((OVigiaApplication) requireActivity().getApplication()).container();
         viewModel = new ViewModelProvider(this, new FriendsViewModel.Factory(container.socialRepository,
                 container.socialExecutor, container.mainExecutor)).get(FriendsViewModel.class);
 
@@ -84,12 +99,19 @@ public class FriendsFragment extends Fragment {
             FriendsUiState.Message message = event.consume();
             if (message != null) Snackbar.make(binding.getRoot(), messageText(message), Snackbar.LENGTH_SHORT).show();
         });
+        viewModel.heroesReceived().observe(getViewLifecycleOwner(), event -> {
+            List<HeroReceived> received = event.consume();
+            if (received != null) celebrate(received);
+        });
         viewModel.start();
     }
 
     @Override
     public void onDestroyView() {
         motion.cancelAll();
+        // A proposta aberta continua no ViewModel: a gaveta volta ao recriar a tela.
+        if (tradeSheet != null) tradeSheet.dismissQuietly();
+        tradeSheet = null;
         super.onDestroyView();
         binding = null;
         shownStatus = null;
@@ -156,6 +178,7 @@ public class FriendsFragment extends Fragment {
         }
         boolean stepChanged = shownStatus != state.status;
         shownStatus = state.status;
+        renderTradeSheet(state);
 
         binding.progress.setVisibility(state.status == Status.LOADING ? View.VISIBLE : View.GONE);
         boolean ready = state.status == Status.READY;
@@ -276,6 +299,24 @@ public class FriendsFragment extends Fragment {
         renderSearch(state);
 
         FriendsHub hub = state.hub;
+        String myUid = me == null ? "" : me.uid;
+        binding.tvTradesInTitle.setVisibility(hub.incomingTrades.isEmpty() ? View.GONE : View.VISIBLE);
+        binding.tvTradesInTitle.setText(getString(R.string.trade_incoming_title, hub.incomingTrades.size()));
+        fillTrades(binding.tradesInList, hub.incomingTrades.size(), (row, i) -> {
+            TradeOffer t = hub.incomingTrades.get(i);
+            bindTradeRow(row, t, myUid, state);
+            row.tvTitle.setText(getString(R.string.trade_row_incoming, t.from.username,
+                    TradeSheet.heroName(requireContext(), t.want)));
+            row.tvDetail.setText(getString(R.string.trade_row_incoming_detail,
+                    TradeSheet.heroName(requireContext(), t.offer)));
+            row.getRoot().setContentDescription(row.tvTitle.getText() + ". " + row.tvDetail.getText());
+            if (isBusy(row)) return;
+            row.imageChevron.setVisibility(View.VISIBLE);
+            row.getRoot().setForeground(AppCompatResources.getDrawable(requireContext(), R.drawable.ripple_card));
+            // Aceitar e recusar ficam na gaveta, que mostra a troca inteira.
+            row.getRoot().setOnClickListener(v -> viewModel.openTrade(t.id));
+        });
+
         binding.tvIncomingTitle.setVisibility(hub.incoming.isEmpty() ? View.GONE : View.VISIBLE);
         binding.tvIncomingTitle.setText(getString(R.string.friends_incoming_title, hub.incoming.size()));
         fillList(binding.incomingList, hub.incoming.size(), (row, i) -> {
@@ -303,11 +344,146 @@ public class FriendsFragment extends Fragment {
             showSecondary(row, R.string.friends_action_cancel, () -> viewModel.cancel(r.to.uid));
         });
 
+        binding.tvTradesOutTitle.setVisibility(hub.outgoingTrades.isEmpty() ? View.GONE : View.VISIBLE);
+        binding.tvTradesOutTitle.setText(getString(R.string.trade_outgoing_title, hub.outgoingTrades.size()));
+        fillTrades(binding.tradesOutList, hub.outgoingTrades.size(), (row, i) -> {
+            TradeOffer t = hub.outgoingTrades.get(i);
+            bindTradeRow(row, t, myUid, state);
+            row.tvTitle.setText(getString(R.string.trade_row_outgoing, TradeSheet.heroName(requireContext(), t.want),
+                    t.to.username));
+            row.tvDetail.setText(getString(R.string.trade_row_outgoing_detail,
+                    TradeSheet.heroName(requireContext(), t.offer)));
+            row.getRoot().setContentDescription(row.tvTitle.getText() + ". " + row.tvDetail.getText());
+            if (isBusy(row)) return;
+            row.btnSecondary.setVisibility(View.VISIBLE);
+            row.btnSecondary.setContentDescription(getString(R.string.trade_cancel));
+            row.btnSecondary.setOnClickListener(v -> viewModel.cancelTrade(t.id));
+        });
+
         if (stepChanged) {
-            motion.staggerIn(0, binding.meCard, binding.searchLayout, binding.tvIncomingTitle, binding.incomingList,
-                    binding.tvFriendsTitle, binding.tvFriendsEmpty, binding.friendsList, binding.tvOutgoingTitle,
-                    binding.outgoingList);
+            motion.staggerIn(0, binding.meCard, binding.tvTradesInTitle, binding.tradesInList, binding.searchLayout,
+                    binding.tvIncomingTitle, binding.incomingList, binding.tvFriendsTitle, binding.tvFriendsEmpty,
+                    binding.friendsList, binding.tvOutgoingTitle, binding.outgoingList, binding.tvTradesOutTitle,
+                    binding.tradesOutList);
         }
+    }
+
+    // ---------------------------------------------------------------- trocas
+
+    private interface TradeRowBinder {
+        void bind(ItemTradeRowBinding row, int index);
+    }
+
+    private void fillTrades(LinearLayout list, int count, TradeRowBinder binder) {
+        while (list.getChildCount() > count) list.removeViewAt(list.getChildCount() - 1);
+        LayoutInflater inflater = LayoutInflater.from(list.getContext());
+        for (int i = 0; i < count; i++) {
+            ItemTradeRowBinding row = i < list.getChildCount()
+                    ? ItemTradeRowBinding.bind(list.getChildAt(i))
+                    : ItemTradeRowBinding.inflate(inflater, list, true);
+            binder.bind(row, i);
+        }
+    }
+
+    /** Foto do amigo e as duas miniaturas (o que o jogador dá ⇄ o que recebe); esconde as ações. */
+    private void bindTradeRow(ItemTradeRowBinding row, TradeOffer trade, String myUid, FriendsUiState state) {
+        SharedImages.bindAvatar(this, row.imageAvatar, trade.partnerOf(myUid).avatar, rowIconPadding);
+        bindThumb(row.imageGive, trade.heroFrom(myUid));
+        bindThumb(row.imageGet, trade.heroFor(myUid));
+        boolean busy = state.busyUids.contains(trade.id);
+        row.rowProgress.setVisibility(busy ? View.VISIBLE : View.GONE);
+        row.btnSecondary.setVisibility(View.GONE);
+        row.imageChevron.setVisibility(View.GONE);
+        row.getRoot().setOnClickListener(null);
+        row.getRoot().setClickable(false);
+        row.getRoot().setForeground(null);
+        row.getRoot().setTag(busy);
+    }
+
+    private void bindThumb(ImageView view, PublicProfile.Hero hero) {
+        Glide.with(this)
+                .load(hero.imageUrl)
+                .placeholder(R.color.vigia_panel_solid)
+                .error(R.drawable.ic_character_placeholder)
+                .centerCrop()
+                .into(view);
+    }
+
+    private static boolean isBusy(ItemTradeRowBinding row) {
+        return Boolean.TRUE.equals(row.getRoot().getTag());
+    }
+
+    /** Abre, atualiza ou fecha a gaveta conforme {@code state.review}. */
+    private void renderTradeSheet(FriendsUiState state) {
+        TradeReview review = state.status == Status.READY ? state.review : null;
+        if (review == null) {
+            if (tradeSheet != null) tradeSheet.dismissQuietly();
+            tradeSheet = null;
+            return;
+        }
+        if (tradeSheet == null) {
+            tradeSheet = new TradeSheet(this, new TradeSheet.Actions() {
+                @Override public void onPick(int heroId) { viewModel.chooseTradeHero(heroId); }
+                @Override public void onConfirm() { viewModel.acceptTrade(); }
+                @Override public void onSecondary() { viewModel.declineTrade(review.trade.id); }
+                @Override public void onClosed() {
+                    tradeSheet = null;
+                    viewModel.closeTrade();
+                }
+            });
+        }
+        TradeOffer trade = review.trade;
+        String friend = trade.from.name;
+        TradeSuggestions.Pick chosen = review.chosen();
+        TradeSheet.Model model = new TradeSheet.Model();
+        model.title = getString(R.string.trade_review_title, friend);
+        model.give = trade.want;
+        model.get = chosen == null ? null : chosen.hero;
+        model.giveReason = getString(R.string.trade_you_keep);
+        model.getReason = TradeSheet.reasonText(requireContext(), chosen);
+        model.pickerTitle = getString(R.string.trade_pick_get, friend);
+        if (review.loading) {
+            model.pickerNote = null;
+        } else if (review.picks.isEmpty()) {
+            model.pickerNote = getString(R.string.trade_pick_get_none, friend);
+        } else if (review.partial) {
+            model.pickerNote = getString(R.string.trade_pick_get_partial, friend);
+        } else {
+            model.pickerNote = getString(R.string.trade_pick_get_note);
+        }
+        model.picks = review.picks;
+        model.selectedId = review.chosenId;
+        model.badgeId = trade.offer.characterId;
+        model.badgeText = getString(R.string.trade_badge_offered);
+        model.loading = review.loading;
+        model.busy = review.accepting;
+        model.confirmEnabled = chosen != null;
+        model.confirmText = R.string.trade_accept;
+        model.secondaryText = R.string.trade_decline;
+        tradeSheet.bind(model);
+    }
+
+    /** Heróis que chegaram por troca: avisa, abre a ficha num toque e deixa as conquistas comemorarem. */
+    private void celebrate(List<HeroReceived> received) {
+        container.achievements.sync();
+        if (received.isEmpty()) return;
+        HeroReceived first = received.get(0);
+        String text = received.size() == 1
+                ? getString(R.string.trade_message_received, TradeSheet.heroName(requireContext(), first.hero),
+                        first.partner.username)
+                : getResources().getQuantityString(R.plurals.trade_message_received_many, received.size(),
+                        received.size());
+        Snackbar snackbar = Snackbar.make(binding.getRoot(), text, Snackbar.LENGTH_LONG);
+        if (received.size() == 1) {
+            int heroId = first.hero.characterId;
+            snackbar.setAction(R.string.trade_message_see, v -> {
+                if (!isCurrent()) return;
+                Bundle args = new Bundle();
+                args.putInt(HeroDetailFragment.ARG_CHARACTER_ID, heroId);
+                nav().navigate(R.id.heroDetailFragment, args, FadeNavOptions.builder().build());
+            });
+        }
+        snackbar.show();
     }
 
     private void renderSearch(FriendsUiState state) {
@@ -433,6 +609,10 @@ public class FriendsFragment extends Fragment {
             case REQUEST_CANCELED: return R.string.friends_message_canceled;
             case USERNAME_SAVED: return R.string.friends_message_username_saved;
             case CONNECTED: return R.string.friends_message_connected;
+            case TRADE_DECLINED: return R.string.trade_message_declined;
+            case TRADE_CANCELED: return R.string.trade_message_canceled;
+            case TRADE_INVALID: return R.string.trade_message_invalid;
+            case TRADE_GONE: return R.string.trade_message_gone;
             case ACTION_FAILED_OFFLINE: return R.string.friends_error_offline;
             case ACTION_FAILED:
             default: return R.string.friends_error_generic;

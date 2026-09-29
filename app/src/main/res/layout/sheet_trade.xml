@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Gaveta da troca de heróis, 1 por 1. Em cima, o que cada um dá e recebe; embaixo,
+  a grade para escolher o herói que varia: o que oferecer (quem propõe) ou qual
+  herói do catálogo do amigo ganhar (quem responde).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_sheet"
+    android:orientation="vertical"
+    android:paddingTop="10dp">
+
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:background="@drawable/bg_sheet_handle" />
+
+    <TextView
+        android:id="@+id/tvTradeTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginTop="14dp"
+        android:accessibilityHeading="true"
+        android:textAppearance="@style/TextAppearance.OVigia.Title"
+        tools:text="Troca com Ana" />
+
+    <TextView
+        android:id="@+id/tvTradeSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginTop="4dp"
+        android:text="@string/trade_rule"
+        android:textColor="@color/white_70"
+        android:textSize="13sp" />
+
+    <!-- Você dá ⇄ Você recebe -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginTop="14dp"
+        android:baselineAligned="false"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:id="@+id/sideGive"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/trade_you_give"
+                android:textColor="@color/white_70"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <include
+                android:id="@+id/slotGive"
+                layout="@layout/item_catalog_hero"
+                android:layout_width="@dimen/trade_slot_width"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp" />
+
+            <TextView
+                android:id="@+id/tvGiveReason"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:lines="2"
+                android:textColor="@color/vigia_gold"
+                android:textSize="12sp"
+                tools:text="Fecha Vingadores para Ana" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginHorizontal="4dp"
+            android:background="@drawable/bg_profile_avatar"
+            android:importantForAccessibility="no">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_swap"
+                app:tint="@color/vigia_gold" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:id="@+id/sideGet"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/trade_you_get"
+                android:textColor="@color/white_70"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <include
+                android:id="@+id/slotGet"
+                layout="@layout/item_catalog_hero"
+                android:layout_width="@dimen/trade_slot_width"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp" />
+
+            <TextView
+                android:id="@+id/tvGetReason"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:lines="2"
+                android:textColor="@color/vigia_gold"
+                android:textSize="12sp"
+                tools:text="Completa Vingadores" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvPickerTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginTop="18dp"
+        android:accessibilityHeading="true"
+        android:textAppearance="@style/TextAppearance.OVigia.Label"
+        tools:text="Escolha o que oferecer" />
+
+    <TextView
+        android:id="@+id/tvPickerNote"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginTop="2dp"
+        android:textColor="@color/white_70"
+        android:textSize="13sp"
+        android:visibility="gone"
+        tools:text="Sem conexão: só dá para aceitar o herói oferecido."
+        tools:visibility="visible" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/pickerGrid"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingHorizontal="14dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="12dp"
+            tools:listitem="@layout/item_catalog_hero" />
+
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/pickerProgress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:indeterminate="true"
+            android:visibility="gone"
+            app:indicatorColor="@color/vigia_gold" />
+    </FrameLayout>
+
+    <!-- Ações -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="20dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnTradeSecondary"
+            style="@style/Widget.OVigia.Button.Outlined"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:layout_weight="1"
+            tools:text="@string/trade_decline" />
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.4">
+
+            <Button
+                android:id="@+id/btnTradeConfirm"
+                style="@style/Widget.OVigia.Button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                tools:text="@string/trade_accept" />
+
+            <com.google.android.material.progressindicator.CircularProgressIndicator
+                android:id="@+id/confirmProgress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:elevation="8dp"
+                android:indeterminate="true"
+                android:visibility="gone"
+                app:indicatorColor="@color/white"
+                app:indicatorSize="24dp"
+                app:trackThickness="3dp" />
+        </FrameLayout>
+    </LinearLayout>
+</LinearLayout>

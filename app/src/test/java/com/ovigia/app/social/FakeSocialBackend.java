@@ -12,7 +12,8 @@ import java.util.Set;
 /**
  * Servidor de amigos em memória com as mesmas garantias do firestore.rules:
  * @usuario único, amizade só a partir de um pedido pendente (aceito por quem
- * recebeu) e perfil completo visível só para o dono e os amigos.
+ * recebeu), perfil completo visível só para o dono e os amigos e troca só entre
+ * amigos (aceita uma vez, por quem recebeu).
  */
 public final class FakeSocialBackend implements SocialBackend {
 
@@ -29,6 +30,7 @@ public final class FakeSocialBackend implements SocialBackend {
     private final Map<String, PublicProfile> profiles = new HashMap<>();
     private final Map<String, Set<String>> friends = new HashMap<>();
     private final Map<String, FriendRequest> requests = new HashMap<>();
+    private final Map<String, TradeOffer> trades = new HashMap<>();
     private String signedInUid;
     private int nextUid = 1;
 
@@ -67,6 +69,15 @@ public final class FakeSocialBackend implements SocialBackend {
 
     boolean hasRequest(String fromUid, String toUid) {
         return requests.containsKey(fromUid + "_" + toUid);
+    }
+
+    @Nullable
+    TradeOffer trade(String id) {
+        return trades.get(id);
+    }
+
+    int tradeCount() {
+        return trades.size();
     }
 
     boolean accountExists(String email) {
@@ -196,6 +207,52 @@ public final class FakeSocialBackend implements SocialBackend {
     }
 
     @Override
+    public List<TradeOffer> loadTrades() throws SocialException {
+        String uid = requireUid();
+        List<TradeOffer> list = new ArrayList<>();
+        for (TradeOffer t : trades.values()) {
+            if (t.involves(uid)) list.add(t);
+        }
+        list.sort((a, b) -> Long.compare(b.createdAt, a.createdAt));
+        return list;
+    }
+
+    @Override
+    public void proposeTrade(TradeOffer trade) throws SocialException {
+        String uid = requireUid();
+        if (!uid.equals(trade.from.uid) || uid.equals(trade.to.uid) || !friendsOf(uid).contains(trade.to.uid)
+                || trade.want.characterId == trade.offer.characterId
+                || !trade.id.equals(TradeOffer.idFor(trade.from.uid, trade.to.uid, trade.want.characterId))
+                || trades.containsKey(trade.id)) {
+            throw new SocialException(SocialException.Error.PERMISSION_DENIED);
+        }
+        trades.put(trade.id, new TradeOffer(trade.id, trade.from, trade.to, trade.want, trade.offer,
+                TradeOffer.Status.PENDING, trade.createdAt));
+    }
+
+    @Override
+    public void acceptTrade(String tradeId, PublicProfile.Hero chosenOffer) throws SocialException {
+        String uid = requireUid();
+        TradeOffer t = trades.get(tradeId);
+        if (t == null) throw new SocialException(SocialException.Error.NOT_FOUND);
+        if (!t.to.uid.equals(uid) || t.status != TradeOffer.Status.PENDING
+                || !friendsOf(uid).contains(t.from.uid) || chosenOffer.characterId == t.want.characterId) {
+            throw new SocialException(SocialException.Error.PERMISSION_DENIED);
+        }
+        trades.put(tradeId, new TradeOffer(t.id, t.from, t.to, t.want, chosenOffer, TradeOffer.Status.ACCEPTED,
+                t.createdAt));
+    }
+
+    @Override
+    public void deleteTrade(String tradeId) throws SocialException {
+        String uid = requireUid();
+        TradeOffer t = trades.get(tradeId);
+        if (t == null) return;
+        if (!t.involves(uid)) throw new SocialException(SocialException.Error.PERMISSION_DENIED);
+        trades.remove(tradeId);
+    }
+
+    @Override
     public PublicProfile loadProfile(String uid) throws SocialException {
         String me = requireUid();
         if (!me.equals(uid) && !friendsOf(uid).contains(me)) {
@@ -226,6 +283,7 @@ public final class FakeSocialBackend implements SocialBackend {
         for (String f : new HashSet<>(friendsOf(uid))) friendsOf(f).remove(uid);
         friends.remove(uid);
         requests.values().removeIf(r -> r.from.uid.equals(uid) || r.to.uid.equals(uid));
+        trades.values().removeIf(t -> t.involves(uid));
         UserCard card = cards.remove(uid);
         if (card != null) uidByUsername.remove(card.username);
         profiles.remove(uid);

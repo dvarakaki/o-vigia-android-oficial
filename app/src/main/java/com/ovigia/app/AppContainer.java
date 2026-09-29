@@ -22,11 +22,15 @@ import com.ovigia.app.settings.AndroidAppCache;
 import com.ovigia.app.settings.AppCache;
 import com.ovigia.app.settings.AppLocales;
 import com.ovigia.app.settings.SettingsStore;
+import com.ovigia.app.social.AchievementsStore;
+import com.ovigia.app.social.AchievementsTracker;
 import com.ovigia.app.social.FirebaseSocialBackend;
+import com.ovigia.app.social.KeystoreCredentialVault;
 import com.ovigia.app.social.SocialRepository;
 import com.ovigia.app.translation.CachedHeroTranslationRepository;
 import com.ovigia.app.translation.HeroTranslationRepository;
 import com.ovigia.app.translation.MlKitTextTranslator;
+import com.ovigia.app.ui.Haptics;
 
 import java.io.File;
 import java.io.IOException;
@@ -74,8 +78,14 @@ public final class AppContainer {
     public final HeroDetailRepository heroDetailRepository;
     public final HeroTranslationRepository heroTranslationRepository;
     public final SettingsStore settingsStore;
+    /** A vibração do app, na força escolhida nas configurações. */
+    public final Haptics haptics;
     public final AppCache appCache;
     public final SocialRepository socialRepository;
+    /** Conquistas já comemoradas, por conta. */
+    public final AchievementsStore achievementsStore;
+    /** Avisa quando uma conquista cai, para a festa aparecer por cima de qualquer tela. */
+    public final AchievementsTracker achievements;
 
     private final Context appContext;
     private RosterCatalog rosterCatalog;
@@ -131,16 +141,27 @@ public final class AppContainer {
                 mainExecutor,
                 System::currentTimeMillis);
         settingsStore = new SettingsStore(() -> new File(app.getFilesDir(), "settings.json"), ioExecutor);
+        haptics = new Haptics(app, settingsStore);
         appCache = new AndroidAppCache(app, heroDetailsDirectory, heroTranslationsDirectory);
+        achievementsStore = new AchievementsStore(() -> new File(app.getFilesDir(), "achievements.json"));
+        achievements = new AchievementsTracker(accountStore, collectionStore, learningStore,
+                achievementsStore, this::rosterCatalog, ioExecutor, mainExecutor);
         socialRepository = new SocialRepository(
                 new FirebaseSocialBackend(app, BuildConfig.FIREBASE_EMULATOR_HOST),
                 accountStore, collectionStore, learningStore, profileImages, this::rosterCatalog,
-                socialExecutor, System::currentTimeMillis);
+                socialExecutor, System::currentTimeMillis,
+                // Fora do backup: a senha cifrada só abre neste aparelho, com a chave do Keystore dele.
+                new KeystoreCredentialVault(() -> new File(app.getNoBackupFilesDir(), "pending_link.json")));
 
         // Aquece o aprendizado, a sessão e as preferências fora da main thread antes da primeira tela que precisa deles.
         ioExecutor.execute(learningStore::ensureLoaded);
         ioExecutor.execute(accountStore::ensureLoaded);
         ioExecutor.execute(settingsStore::ensureLoaded);
+        // Crava o marco zero das conquistas antes da primeira partida: sem isso, quem
+        // atualizou o app com meia coleção pronta veria uma enxurrada de cartões.
+        achievements.sync();
+        // Um login sem rede deixou a conexão com os amigos pela metade: termina assim que der.
+        socialRepository.resumePendingQuietly();
         // Aquece o elenco durante a abertura: sem cache em disco (instalação nova, ou vencido),
         // essa é a chamada lenta à Comic Vine — feita agora, some no tempo da splash em vez de
         // atrasar a primeira pergunta. Com cache, é só uma leitura de disco a mais, barata. O

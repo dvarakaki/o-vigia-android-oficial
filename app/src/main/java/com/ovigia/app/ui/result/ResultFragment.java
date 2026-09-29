@@ -96,8 +96,12 @@ public class ResultFragment extends Fragment {
         panel.btnHome.setOnClickListener(v -> goHome());
 
         if (savedInstanceState == null) {
+            AppContainer container = ((OVigiaApplication) requireActivity().getApplication()).container();
             // A partida mudou as estatísticas: os amigos veem a versão nova.
-            ((OVigiaApplication) requireActivity().getApplication()).container().socialRepository.publishQuietly();
+            container.socialRepository.publishQuietly();
+            // A partida em si já pode ter fechado uma conquista (partidas jogadas,
+            // vitórias sobre o Vigia). As de coleção esperam o desbloqueio abaixo.
+            container.achievements.sync();
             // Primeira vez na tela: o Vigia reage e a fala dele entra em cascata.
             motion.popIn(binding.imageArt, 0);
             motion.staggerIn(120, panel.tvMessage, panel.portraitFrame, panel.tvCharacterName);
@@ -179,6 +183,9 @@ public class ResultFragment extends Fragment {
         container.ioExecutor.execute(() -> {
             AccountStore.Account account = container.accountStore.currentAccount();
             boolean added = account != null && container.collectionStore.save(account.id, characterId, name, imageUrl);
+            // Entra na fila do mesmo executor de I/O, logo atrás da gravação acima:
+            // o herói novo já conta quando as conquistas forem recalculadas.
+            if (added) container.achievements.sync();
             container.mainExecutor.execute(() -> {
                 working = false;
                 if (panel == null) return;

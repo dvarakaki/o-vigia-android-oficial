@@ -28,6 +28,7 @@ import com.ovigia.app.R;
 import com.ovigia.app.databinding.FragmentSettingsBinding;
 import com.ovigia.app.settings.AppLanguage;
 import com.ovigia.app.settings.AppLocales;
+import com.ovigia.app.settings.HapticStrength;
 import com.ovigia.app.settings.SettingsUiState;
 import com.ovigia.app.settings.SettingsViewModel;
 import com.ovigia.app.ui.Motion;
@@ -78,7 +79,23 @@ public class SettingsFragment extends Fragment {
         bindSwitchRow(binding.rowKeepScreenOn, binding.switchKeepScreenOn, R.string.settings_keep_screen_on,
                 R.string.settings_keep_screen_on_summary);
         binding.rowHaptics.setOnClickListener(v -> {
-            if (lastState != null && lastState.loaded) viewModel.setHapticFeedback(!lastState.hapticFeedback);
+            if (lastState == null || !lastState.loaded) return;
+            boolean enabling = !lastState.hapticFeedback;
+            viewModel.setHapticFeedback(enabling);
+            // Ligou: um pulso na força guardada confirma que voltou a vibrar.
+            if (enabling) container.haptics.preview(HapticStrength.of(lastState.hapticLevel));
+        });
+        // A faixa vem do modelo (o layout só tem os mesmos números para a pré-visualização).
+        binding.sliderHapticLevel.setValueFrom(HapticStrength.MIN_LEVEL);
+        binding.sliderHapticLevel.setValueTo(HapticStrength.MAX_LEVEL);
+        binding.sliderHapticLevel.setLabelFormatter(value -> String.valueOf(Math.round(value)));
+        binding.sliderHapticLevel.addOnChangeListener((slider, value, fromUser) -> {
+            // O render também move a bolinha: só o jogador (dedo, teclado ou TalkBack) muda a força.
+            if (!fromUser) return;
+            int level = Math.round(value);
+            viewModel.setHapticLevel(level);
+            // Cada nível que a bolinha alcança vibra nele: a força se sente enquanto arrasta.
+            container.haptics.preview(HapticStrength.of(level));
         });
         binding.rowKeepScreenOn.setOnClickListener(v -> {
             if (lastState != null && lastState.loaded) viewModel.setKeepScreenOn(!lastState.keepScreenOn);
@@ -108,6 +125,16 @@ public class SettingsFragment extends Fragment {
         viewModel.start();
     }
 
+    /** A barra só responde com a vibração ligada; desligada, fica à mostra, apagada. */
+    private void renderHapticStrength(SettingsUiState state) {
+        boolean active = state.loaded && state.hapticFeedback;
+        int level = HapticStrength.clamp(state.hapticLevel);
+        if (Math.round(binding.sliderHapticLevel.getValue()) != level) binding.sliderHapticLevel.setValue(level);
+        binding.sliderHapticLevel.setEnabled(active);
+        binding.tvHapticLevel.setText(getString(R.string.settings_haptics_level, level, HapticStrength.MAX_LEVEL));
+        binding.blockHapticStrength.setAlpha(active ? 1f : 0.5f);
+    }
+
     @Override
     public void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
@@ -129,6 +156,7 @@ public class SettingsFragment extends Fragment {
         binding.switchKeepScreenOn.setEnabled(state.loaded);
         binding.switchHaptics.setChecked(state.hapticFeedback);
         binding.switchKeepScreenOn.setChecked(state.keepScreenOn);
+        renderHapticStrength(state);
         if (firstLoad) {
             // Valores lidos do disco aparecem já no lugar; só toques do jogador animam.
             binding.switchHaptics.jumpDrawablesToCurrentState();

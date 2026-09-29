@@ -19,7 +19,11 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.ovigia.app.databinding.ActivityMainBinding;
+import com.ovigia.app.social.Achievement;
+import com.ovigia.app.ui.achievements.AchievementStage;
 import com.ovigia.app.ui.splash.SplashStage;
+
+import java.util.List;
 
 /**
  * Activity única: hospeda o NavHostFragment com todas as telas. O fundo espacial
@@ -31,6 +35,10 @@ import com.ovigia.app.ui.splash.SplashStage;
  * olho e, ao sair, entrega a cena para a {@link SplashStage}, que já está
  * montada por baixo. Só na primeira criação da activity — girar a tela cai
  * direto no app.
+ *
+ * As conquistas também são daqui: elas podem cair em qualquer tela, então quem
+ * escuta o {@code AchievementsTracker} é a activity, e o cartão da comemoração
+ * ({@link AchievementStage}) aparece por cima do que estiver na tela.
  */
 public class MainActivity extends AppCompatActivity {
 
@@ -40,6 +48,8 @@ public class MainActivity extends AppCompatActivity {
 
     /** Guardado só para cortar a cena se a activity morrer no meio dela. */
     @Nullable private SplashStage splash;
+    /** Inflado na primeira conquista que cai; depois disso, reaproveitado. */
+    @Nullable private AchievementStage achievements;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,6 +69,14 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
+        AppContainer container = ((OVigiaApplication) getApplication()).container();
+        container.achievements.unlocked().observe(this, event -> {
+            List<Achievement> unlocked = event.consume();
+            if (unlocked == null || unlocked.isEmpty()) return;
+            if (achievements == null) achievements = AchievementStage.inflate(binding.achievementStage);
+            achievements.show(unlocked);
+        });
+
         // A cena de abertura é só da primeira criação: depois de girar a tela o
         // app já está aberto, e repeti-la seria um atraso sem motivo.
         if (savedInstanceState == null) {
@@ -69,9 +87,10 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        // A cena está presa a estas views: sem isso, ela continuaria animando
-        // uma hierarquia que não existe mais.
+        // As cenas estão presas a estas views: sem isso, elas continuariam
+        // animando uma hierarquia que não existe mais.
         if (splash != null) splash.skip();
+        if (achievements != null) achievements.cancel();
         super.onDestroy();
     }
 

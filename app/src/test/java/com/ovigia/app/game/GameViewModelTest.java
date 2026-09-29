@@ -47,7 +47,7 @@ public class GameViewModelTest {
         repository = new FakeRepository();
         learningStore = new LearningStore(() -> tmp.getRoot().toPath().resolve("learning.json").toFile(), Runnable::run);
         accountStore = new AccountStore(() -> tmp.getRoot().toPath().resolve("accounts.json").toFile(), 1_000);
-        accountStore.signUp("Davi", "davi@exemplo.com", "segredo1");
+        accountStore.signUp("Davi", "davi@exemplo.com", "segredo#1");
         accountId = accountStore.currentAccount().id;
     }
 

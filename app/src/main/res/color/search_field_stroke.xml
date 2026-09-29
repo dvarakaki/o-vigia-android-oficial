@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Contorno das caixas de busca: fio discreto como o dos cards, dourado com foco. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:color="@color/vigia_gold" android:state_focused="true" />
+    <item android:color="@color/white_50" android:state_hovered="true" />
+    <item android:alpha="0.38" android:color="@color/white" android:state_enabled="false" />
+    <item android:color="@color/white_20" />
+</selector>

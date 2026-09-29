@@ -31,6 +31,11 @@
     <!-- Largura mínima das cartas de herói no perfil de um amigo. -->
     <dimen name="friend_hero_min_width">100dp</dimen>
     <dimen name="friend_hero_card_margin">6dp</dimen>
+    <!-- Troca de heróis: cartas da gaveta e miniaturas das linhas (3:4, como as cartas). -->
+    <dimen name="trade_slot_width">112dp</dimen>
+    <dimen name="trade_thumb_width">30dp</dimen>
+    <dimen name="trade_thumb_height">40dp</dimen>
+    <dimen name="trade_card_stroke">1dp</dimen>
 
     <!-- Ficha do herói -->
     <dimen name="hero_backdrop_height">380dp</dimen>
@@ -43,6 +48,12 @@
     <dimen name="hero_bio_collapsed_height">360dp</dimen>
     <dimen name="hero_bio_fade_height">96dp</dimen>
     <dimen name="hero_chip_spacing">8dp</dimen>
+    <!-- Conquistas -->
+    <!-- Medalhão do cartão de conquista e as camadas de luz que estouram atrás dele. -->
+    <dimen name="achievement_medal">56dp</dimen>
+    <dimen name="achievement_rays">116dp</dimen>
+    <dimen name="achievement_burst">92dp</dimen>
+
     <!-- Splash cinematográfica -->
     <!-- Diâmetro das camadas do centro cósmico, todas ancoradas na arte do Vigia. -->
     <dimen name="splash_rays">680dp</dimen>

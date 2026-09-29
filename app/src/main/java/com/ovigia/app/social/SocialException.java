@@ -18,6 +18,8 @@ public final class SocialException extends Exception {
         NOT_FOUND,
         /** O servidor recusou (ex.: o perfil de quem não é mais amigo). */
         PERMISSION_DENIED,
+        /** A troca não vale mais (ex.: o jogador já tem o herói que ia ganhar, ou não tem mais o que ia dar). */
+        TRADE_INVALID,
         UNKNOWN
     }
 

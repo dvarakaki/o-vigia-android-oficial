@@ -43,12 +43,12 @@ public class ContinueFragment extends GameFragment {
 
         panel.btnSim.setOnClickListener(v -> {
             if (!isCurrentDestination(R.id.continueFragment)) return;
-            answerFeedback(v);
+            answerFeedback();
             back.handleOnBackPressed();
         });
         panel.btnNao.setOnClickListener(v -> {
             if (!isCurrentDestination(R.id.continueFragment)) return;
-            answerFeedback(v);
+            answerFeedback();
             viewModel.stopGuessing();
         });
 

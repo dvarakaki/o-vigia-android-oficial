@@ -31,6 +31,9 @@ import java.util.function.Supplier;
  * números, heróis e conquistas) é publicado sempre que algo muda, e heróis
  * desbloqueados em outro aparelho entram na coleção local ao conectar.
  *
+ * Amigos também trocam heróis, 1 por 1 ({@link TradeOffer}): ninguém perde o
+ * seu, cada um ganha o do outro.
+ *
  * Operações bloqueantes (disco e rede): chamar no executor social.
  */
 public final class SocialRepository {
@@ -68,14 +71,38 @@ public final class SocialRepository {
         }
     }
 
-    /** Perfil de um amigo mais os heróis que o jogador também já desbloqueou. */
+    /** Perfil de um amigo mais o que dá para trocar com ele. */
     public static final class FriendProfile {
         public final PublicProfile profile;
+        /** Heróis que o jogador também já desbloqueou. */
         public final Set<Integer> myUnlockedIds;
+        /** Heróis do amigo que o jogador não tem, do mais interessante para ele ao menos. */
+        public final List<TradeSuggestions.Pick> wantPicks;
+        /** Heróis do jogador que o amigo não tem, do mais interessante para o amigo ao menos. */
+        public final List<TradeSuggestions.Pick> offerPicks;
+        /** Propostas pendentes que o jogador fez a esse amigo. */
+        public final List<TradeOffer> sentTrades;
 
-        FriendProfile(PublicProfile profile, Set<Integer> myUnlockedIds) {
+        FriendProfile(PublicProfile profile, Set<Integer> myUnlockedIds, List<TradeSuggestions.Pick> wantPicks,
+                      List<TradeSuggestions.Pick> offerPicks, List<TradeOffer> sentTrades) {
             this.profile = profile;
             this.myUnlockedIds = Collections.unmodifiableSet(myUnlockedIds);
+            this.wantPicks = Collections.unmodifiableList(wantPicks);
+            this.offerPicks = Collections.unmodifiableList(offerPicks);
+            this.sentTrades = Collections.unmodifiableList(sentTrades);
+        }
+    }
+
+    /** Heróis que dá para ganhar ao aceitar uma proposta. */
+    public static final class TradeChoices {
+        /** Do catálogo de quem propôs, sem os que o jogador já tem; o oferecido sempre entra. */
+        public final List<TradeSuggestions.Pick> picks;
+        /** O catálogo não carregou: só o herói oferecido está em {@link #picks}. */
+        public final boolean partial;
+
+        TradeChoices(List<TradeSuggestions.Pick> picks, boolean partial) {
+            this.picks = Collections.unmodifiableList(picks);
+            this.partial = partial;
         }
     }
 
@@ -87,6 +114,7 @@ public final class SocialRepository {
     private final Supplier<RosterCatalog> roster;
     private final Executor executor;
     private final LongSupplier clock;
+    private final CredentialVault vault;
     private final AtomicBoolean publishQueued = new AtomicBoolean(false);
     private String encodedAvatarFile;
     private String encodedAvatar;
@@ -98,6 +126,14 @@ public final class SocialRepository {
     public SocialRepository(SocialBackend backend, AccountStore accountStore, CollectionStore collectionStore,
                             LearningStore learningStore, ProfileImages images, Supplier<RosterCatalog> roster,
                             Executor executor, LongSupplier clock) {
+        this(backend, accountStore, collectionStore, learningStore, images, roster, executor, clock,
+                CredentialVault.NONE);
+    }
+
+    /** @param vault guarda a senha de um login que não conseguiu abrir a sessão online, até conseguir */
+    public SocialRepository(SocialBackend backend, AccountStore accountStore, CollectionStore collectionStore,
+                            LearningStore learningStore, ProfileImages images, Supplier<RosterCatalog> roster,
+                            Executor executor, LongSupplier clock, CredentialVault vault) {
         this.backend = backend;
         this.accountStore = accountStore;
         this.collectionStore = collectionStore;
@@ -106,6 +142,7 @@ public final class SocialRepository {
         this.roster = roster;
         this.executor = executor;
         this.clock = clock;
+        this.vault = vault;
     }
 
     public boolean isConfigured() {
@@ -136,6 +173,7 @@ public final class SocialRepository {
         if (account == null) throw new SocialException(SocialException.Error.NOT_CONNECTED);
         if (!accountStore.verifyPassword(password)) throw new SocialException(SocialException.Error.WRONG_PASSWORD);
         link(account, password, true);
+        vault.clear();
         Session session = session();
         if (session.status == Status.READY) publishIgnoringErrors(session);
         return session;
@@ -144,8 +182,12 @@ public final class SocialRepository {
     /**
      * Depois do login ou do cadastro local: abre a sessão online com a senha que
      * o jogador acabou de digitar, criando a conta online se ela ainda não
-     * existir. Assim a aba de amigos não pede a senha de novo. Nunca falha — sem
-     * rede, a aba volta a pedir a senha quando o jogador abrir.
+     * existir. Assim a aba de amigos não pede a senha de novo. Nunca falha.
+     *
+     * Sem rede na hora, a senha vai para o {@link CredentialVault} e a conexão
+     * termina sozinha depois ({@link #resumePending()}) — o jogador já digitou a
+     * senha uma vez e não deve precisar de novo. Só a senha recusada pelo
+     * servidor não é guardada: com ela não há o que tentar.
      */
     public void resumeAfterSignIn(AccountStore.Account account, String password) {
         if (!backend.isConfigured()) return;
@@ -153,11 +195,60 @@ public final class SocialRepository {
         if (account.cloudUid == null) backend.signOut();
         try {
             link(account, password, true);
+            vault.clear();
             Session session = session();
             if (session.status == Status.READY) publishIgnoringErrors(session);
-        } catch (SocialException ignored) {
-            // A aba de amigos pede a senha quando o jogador abrir.
+        } catch (SocialException e) {
+            if (e.error == SocialException.Error.WRONG_PASSWORD) {
+                vault.clear();
+            } else {
+                vault.save(account.id, password);
+            }
         }
+    }
+
+    /**
+     * Termina a conexão que o login deixou pela metade, com a senha guardada no
+     * {@link CredentialVault}. Sem nada guardado (ou já online), só devolve a
+     * sessão como está.
+     *
+     * @throws SocialException {@link SocialException.Error#OFFLINE} (ou outro erro
+     *                         de rede) quando ainda não deu: a senha continua
+     *                         guardada, e a aba de amigos mostra "sem conexão"
+     *                         em vez de pedir de novo a senha que o jogador já deu
+     */
+    public Session resumePending() throws SocialException {
+        Session session = session();
+        // Ninguém logado (saiu, ou excluiu a conta): não há o que retomar.
+        if (session.status == Status.SIGNED_OUT) vault.clear();
+        if (session.status != Status.NEEDS_CONNECTION) return session;
+        String password = vault.read(session.account.id);
+        if (password == null) return session;
+        if (session.account.cloudUid == null) backend.signOut();
+        try {
+            link(session.account, password, true);
+        } catch (SocialException e) {
+            if (e.error != SocialException.Error.WRONG_PASSWORD) throw e;
+            // A senha mudou em outro lugar desde o login: essa não serve mais, e aí sim a aba pede.
+            vault.clear();
+            return session();
+        }
+        vault.clear();
+        Session resumed = session();
+        if (resumed.status == Status.READY) publishIgnoringErrors(resumed);
+        return resumed;
+    }
+
+    /** {@link #resumePending()} em segundo plano (ex.: ao abrir o app), sem avisar de nada. */
+    public void resumePendingQuietly() {
+        if (!backend.isConfigured()) return;
+        executor.execute(() -> {
+            try {
+                resumePending();
+            } catch (SocialException | RuntimeException ignored) {
+                // Ainda sem rede: a próxima abertura do app (ou da aba de amigos) tenta de novo.
+            }
+        });
     }
 
     /**
@@ -183,6 +274,7 @@ public final class SocialRepository {
                 return null;
             }
             restoreFromCloud(result.account, uid, card);
+            vault.clear();
             publishIgnoringErrors(session());
             return accountStore.currentAccount();
         } catch (SocialException e) {
@@ -191,6 +283,7 @@ public final class SocialRepository {
     }
 
     public void onSignedOut() {
+        vault.clear();
         if (backend.isConfigured()) backend.signOut();
     }
 
@@ -331,9 +424,44 @@ public final class SocialRepository {
 
     // ---------------------------------------------------------------- amigos
 
+    /**
+     * Amigos, pedidos e propostas de troca. As trocas que um amigo aceitou são
+     * concluídas aqui: o herói pedido entra na coleção e a proposta é apagada
+     * (ver {@link FriendsHub#completedTrades}).
+     */
     public FriendsHub hub() throws SocialException {
-        requireReady();
-        return backend.loadHub();
+        Session session = requireReady();
+        FriendsHub hub = backend.loadHub();
+        List<TradeOffer> trades;
+        try {
+            trades = backend.loadTrades();
+        } catch (SocialException e) {
+            // Amigos e pedidos carregaram: as trocas aparecem na próxima atualização.
+            return hub;
+        }
+        String me = session.card.uid;
+        List<TradeOffer> completed = new ArrayList<>();
+        for (TradeOffer t : trades) {
+            if (t.status == TradeOffer.Status.ACCEPTED && t.from.uid.equals(me) && complete(session, t)) {
+                completed.add(t);
+            }
+        }
+        // Os amigos veem o herói novo no perfil.
+        if (!completed.isEmpty()) publishQuietly();
+        return hub.withTrades(me, trades, completed);
+    }
+
+    /** O amigo aceitou: o herói pedido entra na coleção e a proposta sai do servidor. */
+    private boolean complete(Session session, TradeOffer trade) {
+        collectionStore.importEntry(session.account.id, trade.want.characterId, trade.want.name,
+                trade.want.imageUrl, clock.getAsLong());
+        try {
+            backend.deleteTrade(trade.id);
+            return true;
+        } catch (SocialException e) {
+            // O herói já está aqui; a próxima carga tenta apagar de novo (e só então avisa).
+            return false;
+        }
     }
 
     /** Quem usa esse @usuario. {@link SocialException.Error#NOT_FOUND} se ninguém. */
@@ -387,14 +515,121 @@ public final class SocialRepository {
     public void removeFriend(String friendUid) throws SocialException {
         requireReady();
         backend.removeFriend(friendUid);
+        // Propostas com quem não é mais amigo não podem ser aceitas: não deixa nenhuma para trás.
+        try {
+            for (TradeOffer t : backend.loadTrades()) {
+                if (t.involves(friendUid)) backend.deleteTrade(t.id);
+            }
+        } catch (SocialException ignored) {
+            // A aba de amigos já esconde propostas de quem não é amigo.
+        }
     }
 
     public FriendProfile friendProfile(String uid) throws SocialException {
         Session session = requireReady();
         PublicProfile profile = backend.loadProfile(uid);
-        Set<Integer> mine = new HashSet<>();
-        for (CollectionStore.Entry e : collectionStore.list(session.account.id)) mine.add(e.characterId);
-        return new FriendProfile(profile, mine);
+        List<PublicProfile.Hero> myHeroes = myHeroes(session);
+        Set<Integer> mine = idsOf(myHeroes);
+        List<TradeOffer> sent = new ArrayList<>();
+        try {
+            for (TradeOffer t : backend.loadTrades()) {
+                if (t.status == TradeOffer.Status.PENDING && t.from.uid.equals(session.card.uid)
+                        && t.to.uid.equals(uid)) {
+                    sent.add(t);
+                }
+            }
+        } catch (SocialException ignored) {
+            // O perfil vale sem as propostas: no pior caso o jogador pede de novo e o servidor recusa.
+        }
+        RosterCatalog roster = rosterOrNull();
+        return new FriendProfile(profile, mine,
+                TradeSuggestions.rank(profile.heroes, mine, roster),
+                TradeSuggestions.rank(myHeroes, idsOf(profile.heroes), roster), sent);
+    }
+
+    // ---------------------------------------------------------------- trocas
+
+    /**
+     * Pede o {@code want} de um amigo oferecendo o {@code offer} em troca. O
+     * jogador precisa ter o {@code offer} e não ter o {@code want}; o amigo, pelo
+     * perfil publicado ({@code friendHeroes}), o contrário.
+     */
+    public TradeOffer proposeTrade(UserCard friend, List<PublicProfile.Hero> friendHeroes, PublicProfile.Hero want,
+                                   PublicProfile.Hero offer) throws SocialException {
+        Session session = requireReady();
+        String accountId = session.account.id;
+        Set<Integer> theirs = idsOf(friendHeroes);
+        if (want.characterId == offer.characterId
+                || collectionStore.contains(accountId, want.characterId)
+                || !collectionStore.contains(accountId, offer.characterId)
+                || !theirs.contains(want.characterId)
+                || theirs.contains(offer.characterId)) {
+            throw new SocialException(SocialException.Error.TRADE_INVALID);
+        }
+        TradeOffer trade = new TradeOffer(TradeOffer.idFor(session.card.uid, friend.uid, want.characterId),
+                session.card, friend, want, offer, TradeOffer.Status.PENDING, clock.getAsLong());
+        backend.proposeTrade(trade);
+        return trade;
+    }
+
+    /**
+     * Heróis que o jogador pode ganhar aceitando {@code trade}: o oferecido e os
+     * outros do catálogo de quem propôs que ele ainda não tem. Sem o catálogo
+     * (sem rede), só o oferecido.
+     */
+    public TradeChoices tradeChoices(TradeOffer trade) throws SocialException {
+        Session session = requireReady();
+        Set<Integer> mine = idsOf(myHeroes(session));
+        List<PublicProfile.Hero> candidates = new ArrayList<>();
+        candidates.add(trade.offer);
+        boolean partial = false;
+        try {
+            candidates.addAll(backend.loadProfile(trade.from.uid).heroes);
+        } catch (SocialException e) {
+            partial = true;
+        }
+        return new TradeChoices(TradeSuggestions.rank(candidates, mine, rosterOrNull()), partial);
+    }
+
+    /**
+     * Aceita a proposta ganhando {@code chosen} (o herói oferecido ou outro do
+     * catálogo de quem propôs), que entra na coleção na hora. Quem propôs recebe
+     * o herói pedido quando o app dele carregar os amigos.
+     */
+    public void acceptTrade(TradeOffer trade, PublicProfile.Hero chosen) throws SocialException {
+        Session session = requireReady();
+        String accountId = session.account.id;
+        if (!trade.to.uid.equals(session.card.uid)) throw new SocialException(SocialException.Error.PERMISSION_DENIED);
+        if (chosen.characterId == trade.want.characterId
+                || collectionStore.contains(accountId, chosen.characterId)
+                || !collectionStore.contains(accountId, trade.want.characterId)) {
+            throw new SocialException(SocialException.Error.TRADE_INVALID);
+        }
+        backend.acceptTrade(trade.id, chosen);
+        collectionStore.importEntry(accountId, chosen.characterId, chosen.name, chosen.imageUrl, clock.getAsLong());
+        // Quem propôs vê o perfil deste lado: que ele já mostre o herói novo.
+        publishIgnoringErrors(session);
+    }
+
+    /** Recusa (se veio para mim) ou cancela (se fui eu que propus). */
+    public void dismissTrade(TradeOffer trade) throws SocialException {
+        Session session = requireReady();
+        if (!trade.involves(session.card.uid)) throw new SocialException(SocialException.Error.PERMISSION_DENIED);
+        backend.deleteTrade(trade.id);
+    }
+
+    private List<PublicProfile.Hero> myHeroes(Session session) {
+        List<PublicProfile.Hero> heroes = new ArrayList<>();
+        for (CollectionStore.Entry e : collectionStore.list(session.account.id)) {
+            heroes.add(new PublicProfile.Hero(e.characterId, e.name, e.imageUrl, e.savedAt));
+        }
+        return heroes;
+    }
+
+    private static Set<Integer> idsOf(List<PublicProfile.Hero> heroes) {
+        Set<Integer> ids = new HashSet<>();
+        for (PublicProfile.Hero h : heroes) ids.add(h.characterId);
+        return ids;
     }
 
     // ---------------------------------------------------------------- conta

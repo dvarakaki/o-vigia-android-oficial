@@ -19,6 +19,8 @@
 -keep class com.ovigia.app.auth.AccountStore$StoredAccount { <fields>; <init>(); }
 -keep class com.ovigia.app.collection.CollectionStore$State { <fields>; <init>(); }
 -keep class com.ovigia.app.collection.CollectionStore$Entry { <fields>; <init>(); }
+-keep class com.ovigia.app.social.AchievementsStore$State { <fields>; <init>(); }
+-keep class com.ovigia.app.social.KeystoreCredentialVault$Sealed { <fields>; <init>(); }
 -keep class com.ovigia.app.settings.SettingsStore$State { <fields>; <init>(); }
 -keep class com.ovigia.app.translation.CachedHeroTranslationRepository$Cache { <fields>; <init>(); }
 

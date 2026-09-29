@@ -199,6 +199,149 @@
                             layout="@layout/item_profile_stat" />
                     </LinearLayout>
 
+                    <!-- Troca de heróis: o que dá para trocar e a sugestão da vez. -->
+                    <LinearLayout
+                        android:id="@+id/tradeCard"
+                        style="@style/Widget.OVigia.DashboardCard"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/gap"
+                        android:background="@drawable/bg_card_catalog_progress"
+                        android:orientation="vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:baselineAligned="false"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <FrameLayout
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:background="@drawable/bg_profile_avatar"
+                                android:importantForAccessibility="no">
+
+                                <ImageView
+                                    android:layout_width="20dp"
+                                    android:layout_height="20dp"
+                                    android:layout_gravity="center"
+                                    android:importantForAccessibility="no"
+                                    android:src="@drawable/ic_swap"
+                                    app:tint="@color/vigia_gold" />
+                            </FrameLayout>
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="12dp"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:accessibilityHeading="true"
+                                    android:text="@string/trade_card_title"
+                                    android:textAppearance="@style/TextAppearance.OVigia.Label" />
+
+                                <TextView
+                                    android:id="@+id/tvTradeBody"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:textColor="@color/white_70"
+                                    android:textSize="13sp"
+                                    tools:text="Ana tem 5 heróis que você não tem. Você tem 3 que ela não tem." />
+                            </LinearLayout>
+                        </LinearLayout>
+
+                        <!-- Sugestão: o herói do amigo que mais vale pedir. -->
+                        <LinearLayout
+                            android:id="@+id/tradeSuggestion"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:background="@drawable/bg_card_alternative"
+                            android:baselineAligned="false"
+                            android:focusable="true"
+                            android:foreground="@drawable/ripple_card"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:padding="10dp">
+
+                            <com.google.android.material.imageview.ShapeableImageView
+                                android:id="@+id/imageSuggestion"
+                                android:layout_width="48dp"
+                                android:layout_height="64dp"
+                                android:importantForAccessibility="no"
+                                android:scaleType="centerCrop"
+                                app:shapeAppearanceOverlay="@style/ShapeAppearance.OVigia.TradeThumb"
+                                tools:src="@drawable/ic_character_placeholder" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="12dp"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/trade_suggestion_label"
+                                    android:textColor="@color/white_70"
+                                    android:textSize="12sp" />
+
+                                <TextView
+                                    android:id="@+id/tvSuggestionName"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:ellipsize="end"
+                                    android:maxLines="1"
+                                    android:textColor="@color/white"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold"
+                                    tools:text="Homem-Aranha" />
+
+                                <TextView
+                                    android:id="@+id/tvSuggestionReason"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:maxLines="2"
+                                    android:textColor="@color/vigia_gold"
+                                    android:textSize="13sp"
+                                    tools:text="Fecha “Vingadores, avante!”" />
+                            </LinearLayout>
+
+                            <ImageView
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:layout_marginStart="6dp"
+                                android:importantForAccessibility="no"
+                                android:src="@drawable/ic_chevron_right"
+                                app:tint="@color/white_70" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/btnProposeTrade"
+                            style="@style/Widget.OVigia.Button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:text="@string/trade_propose" />
+
+                        <TextView
+                            android:id="@+id/tvTradeHint"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:gravity="center"
+                            android:text="@string/trade_hint_pick"
+                            android:textColor="@color/white_50"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
                     <!-- Conquistas -->
                     <LinearLayout
                         android:id="@+id/achievementsCard"

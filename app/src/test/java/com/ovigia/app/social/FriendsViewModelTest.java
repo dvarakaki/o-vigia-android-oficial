@@ -44,11 +44,32 @@ public class FriendsViewModelTest {
         LearningStore learning = new LearningStore(() -> tmp.getRoot().toPath().resolve("learning.json").toFile(), direct);
         repository = new SocialRepository(backend, accounts, collection, learning,
                 new FakeProfileImages(tmp.getRoot()), () -> null, direct, () -> 1L);
-        accounts.signUp("Davi Souza", "davi@exemplo.com", "segredo1");
+        accounts.signUp("Davi Souza", "davi@exemplo.com", "segredo#1");
     }
 
     private FriendsViewModel newViewModel() {
         return new FriendsViewModel(repository, direct, direct);
+    }
+
+    @Test
+    public void signInThatCouldNotConnect_showsOffline_thenConnectsByItself_neverAskingThePassword() {
+        CollectionStore collection = new CollectionStore(() -> tmp.getRoot().toPath().resolve("c2.json").toFile());
+        LearningStore learning = new LearningStore(() -> tmp.getRoot().toPath().resolve("l2.json").toFile(), direct);
+        repository = new SocialRepository(backend, accounts, collection, learning,
+                new FakeProfileImages(tmp.getRoot()), () -> null, direct, () -> 1L, new FakeCredentialVault());
+        backend.offline = true;
+        repository.resumeAfterSignIn(accounts.currentAccount(), "segredo#1");
+
+        FriendsViewModel vm = newViewModel();
+        vm.start();
+        assertEquals("sem rede: 'sem conexão', não a tela da senha",
+                FriendsUiState.Status.ERROR, vm.state().getValue().status);
+        assertEquals(SocialException.Error.OFFLINE, vm.state().getValue().error);
+
+        backend.offline = false;
+        vm.refresh();
+        assertEquals("a rede voltou: conectou sozinho, falta só o @usuario",
+                FriendsUiState.Status.NEEDS_USERNAME, vm.state().getValue().status);
     }
 
     private static Message lastMessage(FriendsViewModel vm) {
@@ -59,7 +80,7 @@ public class FriendsViewModelTest {
     private FriendsViewModel onlineAs(String username) {
         FriendsViewModel vm = newViewModel();
         vm.start();
-        vm.connect("segredo1");
+        vm.connect("segredo#1");
         vm.claimUsername(username);
         return vm;
     }
@@ -70,7 +91,7 @@ public class FriendsViewModelTest {
         vm.start();
         assertEquals(Status.NEEDS_CONNECTION, vm.state().getValue().status);
 
-        vm.connect("segredo1");
+        vm.connect("segredo#1");
         assertEquals(Status.NEEDS_USERNAME, vm.state().getValue().status);
         assertEquals("sugere a partir do nome", "davisouza", vm.state().getValue().suggestedUsername);
 

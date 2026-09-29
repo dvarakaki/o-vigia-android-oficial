@@ -6,6 +6,7 @@ import com.ovigia.app.auth.AccountStore;
 import com.ovigia.app.auth.AccountStore.ImageKind;
 import com.ovigia.app.collection.CollectionStore;
 import com.ovigia.app.learning.LearningStore;
+import com.ovigia.app.social.AchievementsStore;
 import com.ovigia.app.profile.EditProfileUiState.Message;
 import com.ovigia.app.profile.EditProfileUiState.Status;
 import com.ovigia.app.social.SocialException;
@@ -37,6 +38,7 @@ public class EditProfileViewModelTest {
     private AccountStore accounts;
     private CollectionStore collection;
     private LearningStore learning;
+    private AchievementsStore achievements;
     private FakeProfileImages images;
 
     @Before
@@ -44,12 +46,14 @@ public class EditProfileViewModelTest {
         accounts = new AccountStore(() -> new File(tmp.getRoot(), "accounts.json"), 1_000);
         collection = new CollectionStore(() -> new File(tmp.getRoot(), "collection.json"));
         learning = new LearningStore(() -> new File(tmp.getRoot(), "learning.json"), direct);
+        achievements = new AchievementsStore(() -> new File(tmp.getRoot(), "achievements.json"));
         images = new FakeProfileImages(tmp.getRoot());
-        accounts.signUp("Davi", "davi@exemplo.com", "segredo1");
+        accounts.signUp("Davi", "davi@exemplo.com", "segredo#1");
     }
 
     private EditProfileViewModel started() {
-        EditProfileViewModel vm = new EditProfileViewModel(accounts, collection, learning, images, direct, direct);
+        EditProfileViewModel vm = new EditProfileViewModel(accounts, collection, learning, achievements, images,
+                direct, direct);
         vm.start();
         return vm;
     }
@@ -89,7 +93,7 @@ public class EditProfileViewModelTest {
         assertEquals(AccountStore.Error.WRONG_PASSWORD, vm.state().getValue().profileError);
         assertEquals("nada muda quando falha", "davi@exemplo.com", accounts.currentAccount().email);
 
-        vm.saveProfile("Davi", null, "novo@exemplo.com", "segredo1");
+        vm.saveProfile("Davi", null, "novo@exemplo.com", "segredo#1");
         assertNull(vm.state().getValue().profileError);
         assertEquals("novo@exemplo.com", accounts.currentAccount().email);
     }
@@ -97,16 +101,16 @@ public class EditProfileViewModelTest {
     @Test
     public void changePassword_checksCurrentAndLength() {
         EditProfileViewModel vm = started();
-        vm.changePassword("errada", "novasenha");
+        vm.changePassword("errada", "nova#senha");
         assertEquals(AccountStore.Error.WRONG_PASSWORD, vm.state().getValue().passwordError);
 
-        vm.changePassword("segredo1", "123");
+        vm.changePassword("segredo#1", "123");
         assertEquals(AccountStore.Error.WEAK_PASSWORD, vm.state().getValue().passwordError);
 
-        vm.changePassword("segredo1", "novasenha");
+        vm.changePassword("segredo#1", "nova#senha");
         assertEquals(Message.PASSWORD_CHANGED, lastMessage(vm));
         accounts.signOut();
-        assertTrue(accounts.signIn("davi@exemplo.com", "novasenha").isSuccess());
+        assertTrue(accounts.signIn("davi@exemplo.com", "nova#senha").isSuccess());
     }
 
     @Test
@@ -144,6 +148,7 @@ public class EditProfileViewModelTest {
     public void deleteAccount_removesAccountCollectionAndImages() {
         String id = accounts.currentAccount().id;
         collection.save(id, 7, "Wolverine", "img");
+        achievements.claimNewlyUnlocked(id, java.util.Collections.emptyList());
         learning.recordGame(id, 7, java.util.Collections.emptyList(), LearningStore.Outcome.ENGINE_GUESSED);
         EditProfileViewModel vm = started();
         vm.changeImage(ImageKind.AVATAR, null);
@@ -153,12 +158,13 @@ public class EditProfileViewModelTest {
         assertEquals(AccountStore.Error.WRONG_PASSWORD, vm.state().getValue().deleteError);
         assertNotNull(accounts.currentAccount());
 
-        vm.deleteAccount("segredo1");
+        vm.deleteAccount("segredo#1");
         assertEquals(Status.DELETED, vm.state().getValue().status);
         assertNull(accounts.currentAccount());
-        assertFalse(accounts.signIn("davi@exemplo.com", "segredo1").isSuccess());
+        assertFalse(accounts.signIn("davi@exemplo.com", "segredo#1").isSuccess());
         assertTrue(collection.list(id).isEmpty());
         assertEquals("aprendizado da conta some junto", 0, learning.stats(id).gamesPlayed);
+        assertFalse("conquistas comemoradas somem junto", achievements.isTracking(id));
         assertTrue(images.deleted.contains(avatar));
     }
 
@@ -187,7 +193,7 @@ public class EditProfileViewModelTest {
     }
 
     private EditProfileViewModel startedWith(RecordingOnline online) {
-        EditProfileViewModel vm = new EditProfileViewModel(accounts, collection, learning, images, online,
+        EditProfileViewModel vm = new EditProfileViewModel(accounts, collection, learning, achievements, images, online,
                 direct, direct, direct);
         vm.start();
         return vm;
@@ -202,8 +208,8 @@ public class EditProfileViewModelTest {
         vm.changeImage(ImageKind.AVATAR, null);
         assertEquals(2, online.profileChanges);
 
-        vm.changePassword("segredo1", "novasenha");
-        assertEquals("novasenha", online.newPassword);
+        vm.changePassword("segredo#1", "nova#senha");
+        assertEquals("nova#senha", online.newPassword);
         assertEquals("trocar a senha não muda o que os amigos veem", 2, online.profileChanges);
     }
 
@@ -214,14 +220,14 @@ public class EditProfileViewModelTest {
         online.offline = true;
         EditProfileViewModel vm = startedWith(online);
 
-        vm.deleteAccount("segredo1");
+        vm.deleteAccount("segredo#1");
 
         assertEquals(AccountStore.Error.ONLINE_UNAVAILABLE, vm.state().getValue().deleteError);
         assertNotNull("conta local continua", accounts.currentAccount());
 
         online.offline = false;
         vm.clearDeleteError();
-        vm.deleteAccount("segredo1");
+        vm.deleteAccount("segredo#1");
         assertTrue(online.deleted);
         assertEquals(Status.DELETED, vm.state().getValue().status);
         assertNull(accounts.currentAccount());

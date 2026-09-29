@@ -1,7 +1,6 @@
 package com.ovigia.app.ui.game;
 
 import android.os.Bundle;
-import android.view.HapticFeedbackConstants;
 import android.view.View;
 
 import androidx.annotation.IdRes;
@@ -22,6 +21,7 @@ import com.ovigia.app.data.CharacterRepository.LoadError;
 import com.ovigia.app.game.GameEvent;
 import com.ovigia.app.game.GameViewModel;
 import com.ovigia.app.settings.SettingsStore;
+import com.ovigia.app.ui.Haptics;
 import com.ovigia.app.ui.SystemBarInsets;
 
 /**
@@ -33,6 +33,7 @@ public abstract class GameFragment extends Fragment {
 
     protected GameViewModel viewModel;
     private SettingsStore settings;
+    private Haptics haptics;
 
     protected GameFragment(int layoutId) {
         super(layoutId);
@@ -42,7 +43,9 @@ public abstract class GameFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         SystemBarInsets.padTop(view);
-        settings = ((OVigiaApplication) requireActivity().getApplication()).container().settingsStore;
+        AppContainer container = ((OVigiaApplication) requireActivity().getApplication()).container();
+        settings = container.settingsStore;
+        haptics = container.haptics;
         // Vale enquanto a tela da partida estiver visível; as outras telas seguem o tempo do aparelho.
         view.setKeepScreenOn(settings.keepScreenOn());
         viewModel = obtainViewModel();
@@ -67,11 +70,9 @@ public abstract class GameFragment extends Fragment {
         return NavHostFragment.findNavController(this);
     }
 
-    /** Toque curto de confirmação numa resposta, se o jogador não desligou nas configurações. */
-    protected void answerFeedback(View button) {
-        if (settings != null && settings.hapticFeedback()) {
-            button.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
-        }
+    /** Pulso de confirmação numa resposta, na força escolhida (se o jogador não desligou). */
+    protected void answerFeedback() {
+        if (haptics != null) haptics.tap();
     }
 
     /**

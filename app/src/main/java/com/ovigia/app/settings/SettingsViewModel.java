@@ -52,8 +52,9 @@ public class SettingsViewModel extends ViewModel {
         started = true;
         ioExecutor.execute(() -> {
             boolean haptics = settings.hapticFeedback();
+            int level = settings.hapticStrength().level;
             boolean keepScreenOn = settings.keepScreenOn();
-            mainExecutor.execute(() -> state.setValue(current().withPreferences(haptics, keepScreenOn)));
+            mainExecutor.execute(() -> state.setValue(current().withPreferences(haptics, level, keepScreenOn)));
             long size = cache.sizeBytes();
             mainExecutor.execute(() -> {
                 // Uma limpeza pedida enquanto media publica o próprio tamanho ao terminar.
@@ -66,14 +67,23 @@ public class SettingsViewModel extends ViewModel {
         SettingsUiState current = current();
         if (!current.loaded || current.hapticFeedback == enabled) return;
         settings.setHapticFeedback(enabled);
-        state.setValue(current.withPreferences(enabled, current.keepScreenOn));
+        state.setValue(current.withPreferences(enabled, current.hapticLevel, current.keepScreenOn));
+    }
+
+    /** Só vale com a vibração ligada: desligada, a barra fica parada onde estava. */
+    public void setHapticLevel(int level) {
+        SettingsUiState current = current();
+        int clamped = HapticStrength.clamp(level);
+        if (!current.loaded || !current.hapticFeedback || current.hapticLevel == clamped) return;
+        settings.setHapticLevel(clamped);
+        state.setValue(current.withPreferences(current.hapticFeedback, clamped, current.keepScreenOn));
     }
 
     public void setKeepScreenOn(boolean enabled) {
         SettingsUiState current = current();
         if (!current.loaded || current.keepScreenOn == enabled) return;
         settings.setKeepScreenOn(enabled);
-        state.setValue(current.withPreferences(current.hapticFeedback, enabled));
+        state.setValue(current.withPreferences(current.hapticFeedback, current.hapticLevel, enabled));
     }
 
     public void clearCache() {

@@ -13,6 +13,7 @@ import com.ovigia.app.auth.AccountStore;
 import com.ovigia.app.auth.AccountStore.Error;
 import com.ovigia.app.auth.AccountStore.ImageKind;
 import com.ovigia.app.collection.CollectionStore;
+import com.ovigia.app.social.AchievementsStore;
 import com.ovigia.app.learning.LearningStore;
 import com.ovigia.app.profile.EditProfileUiState.Busy;
 import com.ovigia.app.profile.EditProfileUiState.Message;
@@ -55,6 +56,7 @@ public class EditProfileViewModel extends ViewModel {
     private final AccountStore accountStore;
     private final CollectionStore collectionStore;
     private final LearningStore learningStore;
+    private final AchievementsStore achievementsStore;
     private final ProfileImages images;
     private final OnlineAccount online;
     private final Executor onlineExecutor;
@@ -66,20 +68,21 @@ public class EditProfileViewModel extends ViewModel {
     private boolean started = false;
 
     public EditProfileViewModel(AccountStore accountStore, CollectionStore collectionStore,
-                                LearningStore learningStore, ProfileImages images,
-                                Executor ioExecutor, Executor mainExecutor) {
-        this(accountStore, collectionStore, learningStore, images, OnlineAccount.NONE,
+                                LearningStore learningStore, AchievementsStore achievementsStore,
+                                ProfileImages images, Executor ioExecutor, Executor mainExecutor) {
+        this(accountStore, collectionStore, learningStore, achievementsStore, images, OnlineAccount.NONE,
                 ioExecutor, ioExecutor, mainExecutor);
     }
 
     /** @param onlineExecutor onde roda a exclusão da conta online (rede) */
     public EditProfileViewModel(AccountStore accountStore, CollectionStore collectionStore,
-                                LearningStore learningStore, ProfileImages images,
-                                OnlineAccount online, Executor onlineExecutor, Executor ioExecutor,
-                                Executor mainExecutor) {
+                                LearningStore learningStore, AchievementsStore achievementsStore,
+                                ProfileImages images, OnlineAccount online, Executor onlineExecutor,
+                                Executor ioExecutor, Executor mainExecutor) {
         this.accountStore = accountStore;
         this.collectionStore = collectionStore;
         this.learningStore = learningStore;
+        this.achievementsStore = achievementsStore;
         this.images = images;
         this.online = online;
         this.onlineExecutor = onlineExecutor;
@@ -206,6 +209,7 @@ public class EditProfileViewModel extends ViewModel {
         if (result.isSuccess()) {
             collectionStore.deleteAccount(result.account.id);
             learningStore.deleteAccount(result.account.id);
+            achievementsStore.deleteAccount(result.account.id);
             images.delete(result.account.avatarFile);
             images.delete(result.account.bannerFile);
         }
@@ -305,6 +309,7 @@ public class EditProfileViewModel extends ViewModel {
         private final AccountStore accountStore;
         private final CollectionStore collectionStore;
         private final LearningStore learningStore;
+        private final AchievementsStore achievementsStore;
         private final ProfileImages images;
         private final OnlineAccount online;
         private final Executor onlineExecutor;
@@ -312,11 +317,12 @@ public class EditProfileViewModel extends ViewModel {
         private final Executor mainExecutor;
 
         public Factory(AccountStore accountStore, CollectionStore collectionStore, LearningStore learningStore,
-                       ProfileImages images, OnlineAccount online, Executor onlineExecutor, Executor ioExecutor,
-                       Executor mainExecutor) {
+                       AchievementsStore achievementsStore, ProfileImages images, OnlineAccount online,
+                       Executor onlineExecutor, Executor ioExecutor, Executor mainExecutor) {
             this.accountStore = accountStore;
             this.collectionStore = collectionStore;
             this.learningStore = learningStore;
+            this.achievementsStore = achievementsStore;
             this.images = images;
             this.online = online;
             this.onlineExecutor = onlineExecutor;
@@ -328,8 +334,8 @@ public class EditProfileViewModel extends ViewModel {
         @Override
         @SuppressWarnings("unchecked")
         public <T extends ViewModel> T create(@NonNull Class<T> modelClass) {
-            return (T) new EditProfileViewModel(accountStore, collectionStore, learningStore, images, online,
-                    onlineExecutor, ioExecutor, mainExecutor);
+            return (T) new EditProfileViewModel(accountStore, collectionStore, learningStore, achievementsStore,
+                    images, online, onlineExecutor, ioExecutor, mainExecutor);
         }
     }
 }

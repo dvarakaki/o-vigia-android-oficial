@@ -51,7 +51,7 @@ public class ProfileViewModelTest {
         accountStore = new AccountStore(() -> tmp.getRoot().toPath().resolve("accounts.json").toFile(), 1_000);
         collectionStore = new CollectionStore(() -> tmp.getRoot().toPath().resolve("collection.json").toFile());
         images = new FakeProfileImages(tmp.getRoot());
-        accountStore.signUp("Davi", "davi@exemplo.com", "segredo1");
+        accountStore.signUp("Davi", "davi@exemplo.com", "segredo#1");
     }
 
     private ProfileViewModel newViewModel() {

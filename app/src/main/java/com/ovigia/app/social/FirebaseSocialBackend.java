@@ -50,6 +50,7 @@ import java.util.concurrent.TimeoutException;
  *   <li>{@code users/{uid}/friends/{friendUid}}: amizades, dos dois lados.</li>
  *   <li>{@code profiles/{uid}}: perfil completo (só o dono e os amigos leem).</li>
  *   <li>{@code friendRequests/{from}_{to}}: pedidos pendentes.</li>
+ *   <li>{@code trades/{from}_{to}_{heroId}}: propostas de troca de heróis entre amigos.</li>
  * </ul>
  *
  * Tudo roda com {@link Tasks#await} numa thread de fundo; o cache do Firestore
@@ -64,6 +65,8 @@ public final class FirebaseSocialBackend implements SocialBackend {
     private static final int IN_QUERY_LIMIT = 10;
     /** Projeto "demo-*": o Emulator Suite aceita sem projeto real no console. */
     private static final String EMULATOR_PROJECT_ID = "demo-ovigia";
+    private static final String TRADE_PENDING = "pending";
+    private static final String TRADE_ACCEPTED = "accepted";
 
     private final Context context;
     private final String emulatorHost;
@@ -272,6 +275,53 @@ public final class FirebaseSocialBackend implements SocialBackend {
         await(batch.commit());
     }
 
+    // ---------------------------------------------------------------- trocas
+
+    @Override
+    public List<TradeOffer> loadTrades() throws SocialException {
+        String uid = requireUid();
+        Task<QuerySnapshot> sentTask = trades().whereEqualTo("from", uid).get();
+        Task<QuerySnapshot> receivedTask = trades().whereEqualTo("to", uid).get();
+        List<TradeOffer> list = tradesFrom(await(sentTask));
+        list.addAll(tradesFrom(await(receivedTask)));
+        list.sort((a, b) -> Long.compare(b.createdAt, a.createdAt));
+        return list;
+    }
+
+    @Override
+    public void proposeTrade(TradeOffer trade) throws SocialException {
+        String uid = requireUid();
+        if (!uid.equals(trade.from.uid)) throw new SocialException(SocialException.Error.NOT_CONNECTED);
+        Map<String, Object> data = new HashMap<>();
+        data.put("from", trade.from.uid);
+        data.put("to", trade.to.uid);
+        data.put("fromName", trade.from.name);
+        data.put("fromUsername", trade.from.username);
+        data.put("toName", trade.to.name);
+        data.put("toUsername", trade.to.username);
+        putHero(data, "want", trade.want);
+        putHero(data, "offer", trade.offer);
+        data.put("status", TRADE_PENDING);
+        data.put("createdAt", System.currentTimeMillis());
+        await(trades().document(trade.id).set(data));
+    }
+
+    @Override
+    public void acceptTrade(String tradeId, PublicProfile.Hero chosenOffer) throws SocialException {
+        requireUid();
+        Map<String, Object> data = new HashMap<>();
+        putHero(data, "offer", chosenOffer);
+        data.put("status", TRADE_ACCEPTED);
+        data.put("respondedAt", System.currentTimeMillis());
+        await(trades().document(tradeId).update(data));
+    }
+
+    @Override
+    public void deleteTrade(String tradeId) throws SocialException {
+        requireUid();
+        await(trades().document(tradeId).delete());
+    }
+
     @Override
     public PublicProfile loadProfile(String uid) throws SocialException {
         requireUid();
@@ -299,6 +349,8 @@ public final class FirebaseSocialBackend implements SocialBackend {
         QuerySnapshot friends = await(friendsOf(uid).get());
         QuerySnapshot incoming = await(requests().whereEqualTo("to", uid).get());
         QuerySnapshot outgoing = await(requests().whereEqualTo("from", uid).get());
+        QuerySnapshot tradesSent = await(trades().whereEqualTo("from", uid).get());
+        QuerySnapshot tradesReceived = await(trades().whereEqualTo("to", uid).get());
 
         WriteBatch batch = db.batch();
         for (DocumentSnapshot f : friends.getDocuments()) {
@@ -307,6 +359,8 @@ public final class FirebaseSocialBackend implements SocialBackend {
         }
         for (DocumentSnapshot r : incoming.getDocuments()) batch.delete(r.getReference());
         for (DocumentSnapshot r : outgoing.getDocuments()) batch.delete(r.getReference());
+        for (DocumentSnapshot t : tradesSent.getDocuments()) batch.delete(t.getReference());
+        for (DocumentSnapshot t : tradesReceived.getDocuments()) batch.delete(t.getReference());
         batch.delete(profiles().document(uid));
         String username = card.exists() ? card.getString("username") : null;
         if (username != null) batch.delete(usernames().document(username));
@@ -353,6 +407,8 @@ public final class FirebaseSocialBackend implements SocialBackend {
     private CollectionReference profiles() { return db.collection("profiles"); }
 
     private CollectionReference requests() { return db.collection("friendRequests"); }
+
+    private CollectionReference trades() { return db.collection("trades"); }
 
     private CollectionReference friendsOf(String uid) { return users().document(uid).collection("friends"); }
 
@@ -449,6 +505,35 @@ public final class FirebaseSocialBackend implements SocialBackend {
             list.add(new FriendRequest(from, to, asLong(doc.get("createdAt"))));
         }
         list.sort((a, b) -> Long.compare(b.createdAt, a.createdAt));
+        return list;
+    }
+
+    /** Herói da troca em campos soltos ({@code wantId}, {@code wantName}…): as regras validam cada um. */
+    private static void putHero(Map<String, Object> data, String prefix, PublicProfile.Hero hero) {
+        data.put(prefix + "Id", hero.characterId);
+        data.put(prefix + "Name", hero.name);
+        data.put(prefix + "Image", hero.imageUrl);
+    }
+
+    private static PublicProfile.Hero heroFrom(DocumentSnapshot doc, String prefix) {
+        return new PublicProfile.Hero((int) asLong(doc.get(prefix + "Id")), doc.getString(prefix + "Name"),
+                doc.getString(prefix + "Image"), 0L);
+    }
+
+    private static List<TradeOffer> tradesFrom(QuerySnapshot snapshot) {
+        List<TradeOffer> list = new ArrayList<>();
+        for (DocumentSnapshot doc : snapshot.getDocuments()) {
+            String from = doc.getString("from");
+            String to = doc.getString("to");
+            if (from == null || to == null) continue;
+            TradeOffer.Status status = TRADE_ACCEPTED.equals(doc.getString("status"))
+                    ? TradeOffer.Status.ACCEPTED : TradeOffer.Status.PENDING;
+            // Sem foto: a tela usa o cartão atual do amigo, que já vem com ela.
+            list.add(new TradeOffer(doc.getId(),
+                    new UserCard(from, doc.getString("fromUsername"), doc.getString("fromName"), null),
+                    new UserCard(to, doc.getString("toUsername"), doc.getString("toName"), null),
+                    heroFrom(doc, "want"), heroFrom(doc, "offer"), status, asLong(doc.get("createdAt"))));
+        }
         return list;
     }
 

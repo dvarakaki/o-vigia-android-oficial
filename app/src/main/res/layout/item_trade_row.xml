@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Proposta de troca na aba de amigos: quem é, o que cada lado dá (duas miniaturas
+  com as setas no meio) e a ação da vez — abrir a proposta recebida, ou cancelar a
+  que o jogador mandou.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="10dp"
+    android:background="@drawable/bg_card_alternative"
+    android:gravity="center_vertical"
+    android:minHeight="72dp"
+    android:orientation="horizontal"
+    android:paddingVertical="10dp"
+    android:paddingStart="12dp"
+    android:paddingEnd="6dp">
+
+    <FrameLayout
+        android:layout_width="@dimen/avatar_friend"
+        android:layout_height="@dimen/avatar_friend"
+        android:background="@drawable/bg_profile_avatar"
+        android:importantForAccessibility="no"
+        android:padding="2dp">
+
+        <ImageView
+            android:id="@+id/imageAvatar"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:padding="10dp"
+            android:src="@drawable/ic_person"
+            app:tint="@color/vigia_gold" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            tools:text="\@ana quer seu Wolverine" />
+
+        <TextView
+            android:id="@+id/tvDetail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="@color/white_70"
+            android:textSize="13sp"
+            tools:text="e oferece o Homem-Aranha" />
+    </LinearLayout>
+
+    <!-- Miniaturas: o que o jogador dá ⇄ o que recebe. -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:gravity="center_vertical"
+        android:importantForAccessibility="noHideDescendants"
+        android:orientation="horizontal">
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/imageGive"
+            android:layout_width="@dimen/trade_thumb_width"
+            android:layout_height="@dimen/trade_thumb_height"
+            android:scaleType="centerCrop"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.OVigia.TradeThumb"
+            tools:src="@drawable/ic_character_placeholder" />
+
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_marginHorizontal="3dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_swap"
+            app:tint="@color/vigia_gold" />
+
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/imageGet"
+            android:layout_width="@dimen/trade_thumb_width"
+            android:layout_height="@dimen/trade_thumb_height"
+            android:scaleType="centerCrop"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.OVigia.TradeThumb"
+            tools:src="@drawable/ic_character_placeholder" />
+    </LinearLayout>
+
+    <!-- Cancelar a proposta enviada (a recebida se responde na gaveta). -->
+    <ImageButton
+        android:id="@+id/btnSecondary"
+        style="@style/Widget.OVigia.IconButton"
+        android:layout_marginStart="2dp"
+        android:contentDescription="@string/trade_cancel"
+        android:padding="12dp"
+        android:src="@drawable/ic_close"
+        android:visibility="gone"
+        app:tint="@color/white_70"
+        tools:visibility="visible" />
+
+    <ImageView
+        android:id="@+id/imageChevron"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginHorizontal="6dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ic_chevron_right"
+        android:visibility="gone"
+        app:tint="@color/white_70" />
+
+    <com.google.android.material.progressindicator.CircularProgressIndicator
+        android:id="@+id/rowProgress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="12dp"
+        android:indeterminate="true"
+        android:visibility="gone"
+        app:indicatorColor="@color/vigia_gold"
+        app:indicatorSize="24dp"
+        app:trackThickness="3dp" />
+</LinearLayout>
