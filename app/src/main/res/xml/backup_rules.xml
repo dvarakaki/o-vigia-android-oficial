@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Android 9–11. Só as preferências do aparelho (vibração, tela ligada) vão para o backup.
-  A conta e os dados do jogador moram no Firebase: restaurar arquivos antigos traria de
-  volta uma sessão sem login de verdade (e dados fora da conta).
+  A conta e os dados do jogador moram na API do O Vigia: restaurar a sessão ou a cópia
+  dos dados num aparelho novo traria de volta um login sem senha (e dados velhos).
 -->
 <full-backup-content>
     <include domain="file" path="settings.json" />

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Android 12+. Só as preferências do aparelho (vibração, tela ligada) acompanham o
-  jogador; a conta e os dados dele moram no Firebase e voltam ao entrar de novo.
+  jogador; a conta e os dados dele moram na API do O Vigia e voltam ao entrar de novo.
 -->
 <data-extraction-rules>
     <cloud-backup>

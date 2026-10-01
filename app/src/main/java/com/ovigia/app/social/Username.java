@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 /**
  * Regras do @usuario, o identificador público com que um jogador encontra o
  * outro. Único no servidor e sempre guardado em minúsculas, então "@Davi" e
- * "@davi" são o mesmo nome. As mesmas regras estão em {@code firestore.rules}.
+ * "@davi" são o mesmo nome. A API confere as mesmas regras.
  */
 public final class Username {
 

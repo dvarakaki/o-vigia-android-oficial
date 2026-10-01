@@ -17,13 +17,15 @@ import java.util.Map;
  * comemoradas. Nada disso mora em arquivo do app: a mesma conta mostra os mesmos
  * dados em qualquer aparelho e em qualquer versão.
  *
- * A implementação real é o {@link FirebasePlayerBackend}; os testes usam um
- * falso em memória.
+ * A implementação real é o {@link ApiPlayerBackend}, que fala com a API do
+ * O Vigia; os testes usam um falso em memória.
  *
  * Tudo é bloqueante (rede): chamar fora da main thread — exceto
- * {@link #currentSession()}. Sem internet, as leituras vêm do cache do próprio
- * Firebase no aparelho e as gravações entram numa fila que sobe sozinha quando
- * a rede volta; por isso os métodos que gravam não lançam.
+ * {@link #currentSession()}. Sem internet, as leituras vêm da última cópia
+ * guardada no aparelho e as gravações do jogo (partidas, heróis vistos,
+ * conquistas) entram numa fila que sobe quando a rede volta; por isso esses
+ * métodos não lançam. O que mexe na conta em si (perfil, senha, e-mail) precisa
+ * de rede.
  */
 public interface PlayerBackend {
 
@@ -38,7 +40,8 @@ public interface PlayerBackend {
 
     Session signIn(String email, String password) throws CloudException;
 
-    Session signUp(String email, String password) throws CloudException;
+    /** Cria a conta já com o nome que os amigos vão ver. */
+    Session signUp(String email, String password, String displayName) throws CloudException;
 
     void signOut();
 
@@ -63,8 +66,14 @@ public interface PlayerBackend {
     @Nullable
     Account loadAccount(String uid) throws CloudException;
 
-    /** Grava nome, bio, foto, banner e @usuario (as conquistas comemoradas vão por {@link #addCelebrated}). */
-    void saveAccount(String uid, Account account);
+    /**
+     * Grava nome, bio, foto e banner (o @usuario é reservado pelo {@code SocialBackend};
+     * as conquistas comemoradas vão por {@link #addCelebrated}). Foto e banner novos
+     * chegam em JPEG Base64 e voltam como o endereço onde ficaram guardados.
+     *
+     * @return a conta como ficou no servidor
+     */
+    Account saveAccount(String uid, Account account) throws CloudException;
 
     /**
      * Marca conquistas como comemoradas. Com {@code baseline}, também cria a
@@ -74,10 +83,23 @@ public interface PlayerBackend {
 
     // ---------------------------------------------------------------- heróis
 
+    /**
+     * Heróis desbloqueados. Quem desbloqueia é o servidor: a partida que o Vigia
+     * acertou ({@link #recordGame}), uma troca aceita ou a importação das versões
+     * antigas ({@link #importLegacy}).
+     */
     List<Hero> loadHeroes(String uid) throws CloudException;
 
-    /** Grava o herói (quem chama confere antes se ele já estava lá). */
-    void saveHero(String uid, Hero hero);
+    /**
+     * Espera a partida que acabou de terminar com {@code characterId} subir (até um
+     * limite de tempo; sem rede, ela continua na fila) e diz se foi ela que pôs o
+     * herói na coleção.
+     *
+     * @return {@code true} se o herói é novo, {@code false} se a conta já tinha, ou
+     *     {@code null} se não dá para saber
+     */
+    @Nullable
+    Boolean awaitUnlock(String uid, int characterId);
 
     void markHeroesSeen(String uid, Collection<Integer> characterIds);
 
@@ -88,9 +110,10 @@ public interface PlayerBackend {
 
     /**
      * Uma partida terminou. Com personagem conhecido ({@code game}), soma um nos
-     * favoritos dele, mistura as respostas nas crenças e guarda no histórico;
-     * sem ({@code null}), só conta a partida. As somas são feitas no servidor:
-     * dois aparelhos jogando ao mesmo tempo não se atropelam.
+     * favoritos dele, mistura as respostas nas crenças, guarda no histórico e, se o
+     * Vigia acertou, desbloqueia o herói; sem ({@code null}), só conta a partida.
+     * As somas são feitas no servidor: dois aparelhos jogando ao mesmo tempo não se
+     * atropelam.
      */
     void recordGame(String uid, @Nullable Game game, boolean engineWin);
 
@@ -101,12 +124,13 @@ public interface PlayerBackend {
     void resetLearning(String uid);
 
     /**
-     * Traz para a conta o que uma versão antiga guardava fora dela: favoritos e
-     * crenças são somados; os totais de partidas ficam com o maior valor (o
-     * servidor antigo já podia ter contado as mesmas partidas); o histórico entra
-     * inteiro.
+     * Traz para a conta o que uma versão antiga guardava fora dela: os heróis que
+     * faltam entram; favoritos e crenças são somados; os totais de partidas ficam
+     * com o maior valor (o servidor antigo já podia ter contado as mesmas
+     * partidas); o histórico entra inteiro; as conquistas comemoradas continuam
+     * comemoradas. Precisa de rede.
      */
-    void importLearning(String uid, Learning learning, List<Game> games);
+    void importLegacy(String uid, LegacyImport data) throws CloudException;
 
     // ================================================================ valores
 
@@ -121,7 +145,11 @@ public interface PlayerBackend {
         }
     }
 
-    /** Dados editáveis da conta. Imagens em JPEG codificado em Base64 ({@code null} usa o padrão). */
+    /**
+     * Dados editáveis da conta. Foto e banner são o endereço da imagem guardada na
+     * API (ou, numa troca ainda não gravada, o JPEG novo em Base64); {@code null} usa
+     * o padrão.
+     */
     final class Account {
         public final String name;
         @Nullable public final String bio;
@@ -163,7 +191,7 @@ public interface PlayerBackend {
         }
     }
 
-    /** Herói desbloqueado, com nome e imagem do momento do desbloqueio. */
+    /** Herói desbloqueado, com nome e retrato. */
     final class Hero {
         public final int characterId;
         public final String name;
@@ -216,6 +244,28 @@ public interface PlayerBackend {
             this.characterId = characterId;
             this.outcome = outcome;
             this.answers = Collections.unmodifiableList(answers);
+        }
+    }
+
+    /** O que uma versão antiga guardava fora da conta, para {@link #importLegacy}. */
+    final class LegacyImport {
+        public final List<Hero> heroes;
+        public final Learning learning;
+        public final List<Game> games;
+        /** Conquistas já comemoradas; {@code null} se a versão antiga não guardava. */
+        @Nullable public final Collection<String> celebrated;
+
+        public LegacyImport(List<Hero> heroes, Learning learning, List<Game> games,
+                            @Nullable Collection<String> celebrated) {
+            this.heroes = Collections.unmodifiableList(heroes);
+            this.learning = learning;
+            this.games = Collections.unmodifiableList(games);
+            this.celebrated = celebrated;
+        }
+
+        public boolean isEmpty() {
+            return heroes.isEmpty() && games.isEmpty() && learning.gamesPlayed == 0 && learning.picks.isEmpty()
+                    && learning.beliefs.isEmpty() && celebrated == null;
         }
     }
 }

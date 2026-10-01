@@ -225,7 +225,7 @@ public final class SocialRepository {
         return hub.withTrades(me, trades, completed);
     }
 
-    /** O amigo aceitou: o herói pedido entra na coleção e a proposta sai do servidor. */
+    /** O amigo aceitou: o herói pedido (que o servidor já deu) aparece na coleção e o aviso sai da lista. */
     private boolean complete(Session session, TradeOffer trade) {
         collectionStore.importEntry(session.account.id, trade.want.characterId, trade.want.name,
                 trade.want.imageUrl, clock.getAsLong());
@@ -342,8 +342,7 @@ public final class SocialRepository {
         }
         TradeOffer trade = new TradeOffer(TradeOffer.idFor(session.card.uid, friend.uid, want.characterId),
                 session.card, friend, want, offer, TradeOffer.Status.PENDING, clock.getAsLong());
-        backend.proposeTrade(trade);
-        return trade;
+        return backend.proposeTrade(trade);
     }
 
     /**
@@ -367,8 +366,8 @@ public final class SocialRepository {
 
     /**
      * Aceita a proposta ganhando {@code chosen} (o herói oferecido ou outro do
-     * catálogo de quem propôs), que entra na coleção na hora. Quem propôs recebe
-     * o herói pedido quando o app dele carregar os amigos.
+     * catálogo de quem propôs), que entra na coleção na hora. Quem propôs também
+     * recebe o herói pedido na hora, e vê o aviso quando o app dele carregar os amigos.
      */
     public void acceptTrade(TradeOffer trade, PublicProfile.Hero chosen) throws SocialException {
         Session session = requireReady();

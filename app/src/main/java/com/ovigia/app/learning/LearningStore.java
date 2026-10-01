@@ -74,6 +74,8 @@ public final class LearningStore {
     /** Memória da última conta lida (a da sessão). */
     @Nullable private String loadedFor;
     private Memory memory = new Memory();
+    /** Última partida jogada sem conta, com personagem conhecido (ver {@link #claimGuestGame}). */
+    @Nullable private PlayerBackend.Game guestGame;
 
     public LearningStore(PlayerBackend backend) {
         this.backend = backend;
@@ -113,30 +115,57 @@ public final class LearningStore {
     /**
      * Registra o fim de uma partida em que o personagem certo é conhecido.
      * {@code answers} deve conter só respostas com evidência ("Não sei" fica de fora).
-     * Sem sessão aberta ({@code accountId == null}) a partida não é gravada.
+     * Sem sessão aberta ({@code accountId == null}) a partida não é gravada — mas
+     * fica guardada em memória: se o jogador entrar na conta logo em seguida, na
+     * tela do resultado, {@link #claimGuestGame} a grava.
      */
     public void recordGame(@Nullable String accountId, int correctId, List<AnswerRecord> givenAnswers,
                            Outcome outcome) {
-        if (accountId == null) return;
         // "Não sei" (NaN) não é evidência — e nem o servidor aceita NaN.
         List<AnswerRecord> answers = new ArrayList<>();
         for (AnswerRecord a : givenAnswers) {
             if (a != null && a.key != null && !Double.isNaN(a.value)) answers.add(a);
         }
+        PlayerBackend.Game game = new PlayerBackend.Game(System.currentTimeMillis(), correctId, outcome, answers);
+        synchronized (this) {
+            // Uma partida nova (com ou sem conta) aposenta a que esperava o login.
+            guestGame = accountId == null ? game : null;
+        }
+        if (accountId != null) record(accountId, game);
+    }
+
+    /**
+     * O jogador entrou na conta depois de jogar sem ela: a última partida (se foi
+     * com {@code characterId}) passa a contar para a conta — e, se o Vigia acertou,
+     * é ela que desbloqueia o herói no servidor.
+     *
+     * @return se havia essa partida para gravar
+     */
+    public boolean claimGuestGame(@Nullable String accountId, int characterId) {
+        PlayerBackend.Game game;
+        synchronized (this) {
+            if (accountId == null || guestGame == null || guestGame.characterId != characterId) return false;
+            game = guestGame;
+            guestGame = null;
+        }
+        record(accountId, game);
+        return true;
+    }
+
+    private void record(String accountId, PlayerBackend.Game game) {
         synchronized (this) {
             Memory m = memoryOf(accountId);
-            m.picks.merge(correctId, 1, Integer::sum);
-            Map<String, double[]> perAttr = m.beliefs.computeIfAbsent(correctId, k -> new HashMap<>());
-            for (AnswerRecord a : answers) {
+            m.picks.merge(game.characterId, 1, Integer::sum);
+            Map<String, double[]> perAttr = m.beliefs.computeIfAbsent(game.characterId, k -> new HashMap<>());
+            for (AnswerRecord a : game.answers) {
                 double[] sumCount = perAttr.computeIfAbsent(a.key, k -> new double[2]);
                 sumCount[0] += a.value;
                 sumCount[1] += 1;
             }
-            count(m, outcome);
+            count(m, game.outcome);
             m.recent = null;
         }
-        backend.recordGame(accountId, new PlayerBackend.Game(System.currentTimeMillis(), correctId, outcome, answers),
-                outcome == Outcome.ENGINE_GUESSED);
+        backend.recordGame(accountId, game, game.outcome == Outcome.ENGINE_GUESSED);
     }
 
     /** Registra uma partida perdida sem personagem revelado — só entra nas estatísticas. */

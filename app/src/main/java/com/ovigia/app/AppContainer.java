@@ -1,6 +1,10 @@
 package com.ovigia.app;
 
 import android.content.Context;
+import android.content.SharedPreferences;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -8,16 +12,18 @@ import android.util.Log;
 import com.ovigia.app.api.ApiClient;
 import com.ovigia.app.api.ComicVineService;
 import com.ovigia.app.auth.AccountStore;
-import com.ovigia.app.cloud.FirebasePlayerBackend;
-import com.ovigia.app.cloud.FirebaseServices;
-import com.ovigia.app.cloud.PlayerBackend;
+import com.ovigia.app.cloud.ApiHttp;
+import com.ovigia.app.cloud.ApiPlayerBackend;
+import com.ovigia.app.cloud.PrefsSessionStore;
 import com.ovigia.app.collection.CollectionStore;
+import com.ovigia.app.collection.HeroPortraits;
 import com.ovigia.app.data.CharacterRepository;
 import com.ovigia.app.data.ComicVineCharacterRepository;
 import com.ovigia.app.data.ComicVineHeroDetailRepository;
 import com.ovigia.app.data.HeroDetailRepository;
 import com.ovigia.app.data.QuestionTexts;
 import com.ovigia.app.data.roster.RosterCatalog;
+import com.ovigia.app.data.roster.RosterSync;
 import com.ovigia.app.engine.CharacterProfile;
 import com.ovigia.app.learning.LearningStore;
 import com.ovigia.app.legacy.LegacyData;
@@ -30,7 +36,7 @@ import com.ovigia.app.settings.AppLocales;
 import com.ovigia.app.settings.SettingsStore;
 import com.ovigia.app.social.AchievementsStore;
 import com.ovigia.app.social.AchievementsTracker;
-import com.ovigia.app.social.FirebaseSocialBackend;
+import com.ovigia.app.social.ApiSocialBackend;
 import com.ovigia.app.social.SocialRepository;
 import com.ovigia.app.translation.CachedHeroTranslationRepository;
 import com.ovigia.app.translation.HeroTranslationRepository;
@@ -44,6 +50,7 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -93,8 +100,11 @@ public final class AppContainer {
     public final AchievementsStore achievementsStore;
     /** Avisa quando uma conquista cai, para a festa aparecer por cima de qualquer tela. */
     public final AchievementsTracker achievements;
+    /** Nome e retrato de cada personagem já visto (a API guarda só o id dos heróis). */
+    public final HeroPortraits heroPortraits;
 
     private final Context appContext;
+    private final RosterSync rosterSync;
     private RosterCatalog rosterCatalog;
     private boolean rosterLoaded = false;
 
@@ -104,15 +114,26 @@ public final class AppContainer {
         Handler mainHandler = new Handler(Looper.getMainLooper());
         mainExecutor = mainHandler::post;
 
-        // A conta e todos os dados do jogador moram no Firebase: nada disso fica em arquivo do app.
-        FirebaseServices firebase = new FirebaseServices(app, BuildConfig.FIREBASE_EMULATOR_HOST);
-        PlayerBackend player = new FirebasePlayerBackend(firebase);
-        FirebaseSocialBackend social = new FirebaseSocialBackend(firebase);
+        // A conta e todos os dados do jogador moram na API do O Vigia; o aparelho guarda só a sessão,
+        // a última cópia do que leu e a fila do que ainda não subiu.
+        // getFilesDir() toca o disco: as pastas só são resolvidas fora da main thread.
+        heroPortraits = new HeroPortraits(() -> new File(app.getFilesDir(), "hero_portraits.json"), ioExecutor);
+        ApiHttp http = new ApiHttp(BuildConfig.OVIGIA_API_URL, ApiHttp.defaultClient(), new PrefsSessionStore(app),
+                System::currentTimeMillis);
+        ApiPlayerBackend player = new ApiPlayerBackend(http, heroPortraits, app::getNoBackupFilesDir,
+                Executors.newSingleThreadExecutor(runnable -> {
+                    Thread thread = new Thread(runnable, "ovigia-sync");
+                    thread.setPriority(Thread.NORM_PRIORITY - 1);
+                    return thread;
+                }),
+                deviceName(), System::currentTimeMillis);
+        ApiSocialBackend social = new ApiSocialBackend(http, player, heroPortraits, acknowledgedTrades(app),
+                System::currentTimeMillis);
+        rosterSync = new RosterSync(http, () -> new File(app.getFilesDir(), "roster_api.json"));
         profileImages = new AndroidProfileImages(app.getContentResolver());
         // O que as versões até a 1.3 guardavam em arquivos sobe para a conta no primeiro login e some.
-        // getFilesDir() toca o disco: as pastas só são resolvidas no executor de I/O.
         LegacyData legacy = new LegacyData(app::getFilesDir, app::getNoBackupFilesDir);
-        accountStore = new AccountStore(player, new LegacyMigration(player, social, legacy, profileImages));
+        accountStore = new AccountStore(player, new LegacyMigration(player, legacy, profileImages));
         learningStore = new LearningStore(player);
         collectionStore = new CollectionStore(player);
         achievementsStore = new AchievementsStore(player);
@@ -167,6 +188,19 @@ public final class AppContainer {
         // outra leitura (coleção, aprendizado, conquistas).
         ioExecutor.execute(settingsStore::ensureLoaded);
         ioExecutor.execute(accountStore::currentAccount);
+        // O que ficou na fila (partida jogada sem rede) sobe agora e sempre que a rede voltar.
+        player.uploadPendingInBackground();
+        watchNetwork(app, player);
+        // Elenco novo da API vale já nas conquistas e sugestões; no jogo, a partir da próxima carga.
+        ioExecutor.execute(() -> {
+            RosterCatalog fresh = rosterSync.refresh();
+            if (fresh != null) {
+                synchronized (this) {
+                    rosterCatalog = fresh;
+                    rosterLoaded = true;
+                }
+            }
+        });
         // Crava o marco zero das conquistas antes da primeira partida: sem isso, quem
         // atualizou o app com meia coleção pronta veria uma enxurrada de cartões.
         achievements.sync();
@@ -178,7 +212,9 @@ public final class AppContainer {
         characterRepository.loadCharacters(new CharacterRepository.Callback() {
             @Override
             public void onSuccess(List<CharacterProfile> profiles, Map<String, String> questionTextByKey) {
-                // Só aquecer o cache em memória — quem precisa do elenco chama loadCharacters de novo.
+                // Quem precisa do elenco chama loadCharacters de novo; aqui só guarda os retratos,
+                // que o catálogo e os amigos usam (a API não guarda imagem).
+                heroPortraits.rememberAll(profiles);
             }
 
             @Override
@@ -189,12 +225,15 @@ public final class AppContainer {
     }
 
     /**
-     * Elenco curado do roster.json (jogo e conquistas), lido uma vez. Bloqueante na
-     * primeira chamada: fora da main thread. {@code null} se o arquivo não pôde ser lido.
+     * Elenco curado (jogo e conquistas), lido uma vez: o último que a API mandou ou,
+     * se ela nunca respondeu, o roster.json do app. Bloqueante na primeira chamada:
+     * fora da main thread. {@code null} se nenhum dos dois pôde ser lido.
      */
     public synchronized RosterCatalog rosterCatalog() {
         if (!rosterLoaded) {
             rosterLoaded = true;
+            rosterCatalog = rosterSync.saved();
+            if (rosterCatalog != null) return rosterCatalog;
             try (Reader reader = new InputStreamReader(appContext.getAssets().open("roster.json"),
                     StandardCharsets.UTF_8)) {
                 rosterCatalog = RosterCatalog.parse(reader);
@@ -204,5 +243,53 @@ public final class AppContainer {
             }
         }
         return rosterCatalog;
+    }
+
+    /** O modelo do aparelho, para o jogador reconhecer a sessão. */
+    private static String deviceName() {
+        String model = Build.MODEL == null ? "" : Build.MODEL.trim();
+        String maker = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.trim();
+        String name = model.toLowerCase(java.util.Locale.ROOT).startsWith(maker.toLowerCase(java.util.Locale.ROOT))
+                ? model : (maker + " " + model).trim();
+        return name.isEmpty() ? "Android" : name;
+    }
+
+    /** Trocas concluídas que quem propôs já viu, por conta, nas preferências do app. */
+    private static ApiSocialBackend.AcknowledgedTrades acknowledgedTrades(Context app) {
+        return new ApiSocialBackend.AcknowledgedTrades() {
+            private SharedPreferences prefs;
+
+            private synchronized SharedPreferences prefs() {
+                if (prefs == null) prefs = app.getSharedPreferences("acknowledged_trades", Context.MODE_PRIVATE);
+                return prefs;
+            }
+
+            @Override
+            public Set<String> load(String uid) {
+                return ApiSocialBackend.idsFrom(prefs().getString(uid, null));
+            }
+
+            @Override
+            public void save(String uid, Set<String> ids) {
+                prefs().edit().putString(uid, ApiSocialBackend.idsTo(ids)).apply();
+            }
+        };
+    }
+
+    /** A rede voltou: o que ficou na fila sobe sem esperar a próxima jogada. */
+    private static void watchNetwork(Context app, ApiPlayerBackend player) {
+        ConnectivityManager connectivity = app.getSystemService(ConnectivityManager.class);
+        if (connectivity == null) return;
+        try {
+            connectivity.registerDefaultNetworkCallback(new ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onAvailable(Network network) {
+                    player.uploadPendingInBackground();
+                }
+            });
+        } catch (RuntimeException e) {
+            // Sem acesso ao estado da rede: a fila sobe na próxima abertura ou jogada.
+            Log.w(TAG, "Não foi possível acompanhar a rede", e);
+        }
     }
 }

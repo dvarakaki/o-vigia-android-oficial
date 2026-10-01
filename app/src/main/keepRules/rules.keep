@@ -4,8 +4,8 @@
 # Modelos lidos/escritos via Gson por reflexão (API da Comic Vine, caches em disco,
 # roster.json e preferências). Sem isso o R8 renomeia os campos e o JSON deixa de
 # casar — e troca Map/List por HashMap/ArrayList, o que apaga a assinatura genérica
-# (KeepRulesTest guarda isto). Os dados do jogador vão para o Firestore campo a campo
-# e os arquivos das versões antigas são lidos como árvore JSON: nada disso precisa de regra.
+# (KeepRulesTest guarda isto). Os dados da API do O Vigia, a cópia deles no aparelho e
+# os arquivos das versões antigas são lidos como árvore JSON: nada disso precisa de regra.
 -keep class com.ovigia.app.model.** { <fields>; <init>(); }
 -keep class com.ovigia.app.data.roster.RosterCatalog$Document { <fields>; <init>(); }
 -keep class com.ovigia.app.data.roster.RosterCatalog$Entry { <fields>; <init>(); }

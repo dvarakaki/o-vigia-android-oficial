@@ -15,13 +15,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Heróis desbloqueados da conta, guardados na conta online (um documento por
- * herói): o catálogo é o mesmo em qualquer aparelho e em qualquer versão.
+ * Heróis desbloqueados da conta, guardados na conta online: o catálogo é o
+ * mesmo em qualquer aparelho e em qualquer versão.
  *
- * Cada item guarda nome e foto do momento do desbloqueio, para o catálogo
- * aparecer mesmo sem o elenco carregado (offline, sem cache).
+ * Quem desbloqueia é o servidor — com a partida que o Vigia acertou, uma troca
+ * aceita ou a importação das versões antigas. Aqui fica a cópia lida da conta,
+ * atualizada na hora quando o app sabe que um herói entrou (sem esperar a
+ * próxima leitura).
  *
- * Operações bloqueantes (rede, ou o cache do Firebase sem ela): chamar fora da
+ * Operações bloqueantes (rede, ou a cópia do aparelho sem ela): chamar fora da
  * main thread. Thread-safe.
  */
 public final class CollectionStore {
@@ -42,25 +44,32 @@ public final class CollectionStore {
     }
 
     /**
-     * Adiciona o personagem à coleção da conta. Devolve {@code false} se ele já
-     * estava lá (a data original é mantida).
+     * O Vigia acertou o personagem numa partida já gravada
+     * ({@code LearningStore.recordGame}): espera a partida subir — é ela que
+     * desbloqueia o herói no servidor — e garante o herói na coleção. Devolve
+     * {@code false} se a conta já tinha o herói antes dessa partida (a data
+     * original é mantida). Sem rede, a partida sobe depois e o herói aparece aqui
+     * desde já.
      */
     public synchronized boolean save(String accountId, int characterId, String name, String imageUrl) {
-        return importEntry(accountId, characterId, name, imageUrl, System.currentTimeMillis());
+        Boolean isNew = backend.awaitUnlock(accountId, characterId);
+        Map<Integer, Entry> map = entriesOf(accountId);
+        boolean known = map.containsKey(characterId);
+        if (!known) map.put(characterId, new Entry(characterId, name, imageUrl, System.currentTimeMillis(), false));
+        // A coleção pode ter sido lida depois de a partida subir (e já ter o herói): vale o que o servidor disse.
+        return isNew != null ? isNew : !known;
     }
 
     /**
-     * Traz um herói ganho por outro caminho (uma troca), com a data em que ele
-     * chegou. Devolve {@code false} se ele já estava na coleção.
+     * Um herói que o servidor deu por outro caminho (uma troca), com a data em que
+     * ele chegou. Devolve {@code false} se ele já estava na coleção.
      */
     public synchronized boolean importEntry(String accountId, int characterId, String name, String imageUrl,
                                             long savedAt) {
         Map<Integer, Entry> map = entriesOf(accountId);
         if (map.containsKey(characterId)) return false;
-        Entry entry = new Entry(characterId, name, imageUrl, savedAt > 0 ? savedAt : System.currentTimeMillis(),
-                false);
-        map.put(characterId, entry);
-        backend.saveHero(accountId, new PlayerBackend.Hero(characterId, name, imageUrl, entry.savedAt, false));
+        map.put(characterId, new Entry(characterId, name, imageUrl,
+                savedAt > 0 ? savedAt : System.currentTimeMillis(), false));
         return true;
     }
 

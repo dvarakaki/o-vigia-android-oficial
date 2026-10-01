@@ -15,13 +15,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
 /**
- * A conta do jogador — que é a conta online (Firebase Auth), a mesma em
- * qualquer aparelho e em qualquer versão do app. Nada da conta fica em arquivo:
- * nome, bio, foto, banner e @usuario vêm do {@link PlayerBackend}.
+ * A conta do jogador — que é a conta online (a API do O Vigia), a mesma em
+ * qualquer aparelho e em qualquer versão do app. Nome, bio, foto, banner e
+ * @usuario vêm do {@link PlayerBackend}.
  *
- * Criar a conta e entrar precisam de internet (é o servidor quem confere a
- * senha). Depois disso a sessão fica aberta e o jogo segue sem rede, com a
- * cópia que o Firebase guarda no aparelho.
+ * Criar a conta, entrar e mudar o perfil precisam de internet (é o servidor
+ * quem confere e guarda). Depois de entrar, a sessão fica aberta e o jogo segue
+ * sem rede, com a última cópia guardada no aparelho.
  *
  * Na primeira vez que uma conta aparece nesta versão, a {@link LegacyMigration}
  * traz para ela o que as versões antigas guardavam fora — inclusive contas que
@@ -133,7 +133,7 @@ public final class AccountStore {
         if (!PasswordRules.isStrong(password)) return Result.failure(Error.WEAK_PASSWORD);
         if (!backend.isConfigured()) return Result.failure(Error.UNAVAILABLE);
         try {
-            PlayerBackend.Session session = backend.signUp(cleanEmail, password);
+            PlayerBackend.Session session = backend.signUp(cleanEmail, password, cleanName);
             return opened(session, cleanName);
         } catch (CloudException e) {
             return Result.failure(errorOf(e));
@@ -156,7 +156,7 @@ public final class AccountStore {
             LegacyData.Account local = migration.findLocal(cleanEmail, password);
             if (local == null) return Result.failure(Error.WRONG_CREDENTIALS);
             try {
-                session = backend.signUp(cleanEmail, password);
+                session = backend.signUp(cleanEmail, password, localName(local, cleanEmail));
             } catch (CloudException created) {
                 // Já existe conta online com esse e-mail, com outra senha: vale a de lá.
                 return Result.failure(created.reason == CloudException.Reason.EMAIL_IN_USE
@@ -216,7 +216,11 @@ public final class AccountStore {
         return Result.success(currentAccount());
     }
 
-    /** Define (ou remove, com {@code null}) a foto ou o banner da conta logada, já em JPEG Base64. */
+    /**
+     * Define (ou remove, com {@code null}) a foto ou o banner da conta logada. A
+     * imagem nova chega em JPEG Base64 e vai para o servidor, que guarda e devolve
+     * o endereço dela.
+     */
     public synchronized Result setImage(ImageKind kind, @Nullable String image) {
         PlayerBackend.Session session = backend.currentSession();
         if (session == null) return Result.failure(Error.NOT_SIGNED_IN);
@@ -286,10 +290,22 @@ public final class AccountStore {
     }
 
     private Result save(PlayerBackend.Session session, PlayerBackend.Account data) {
-        backend.saveAccount(session.uid, data);
+        PlayerBackend.Account stored;
+        try {
+            stored = backend.saveAccount(session.uid, data);
+        } catch (CloudException e) {
+            return Result.failure(errorOf(e));
+        }
         cachedUid = session.uid;
-        cached = data;
-        return Result.success(toAccount(session, data));
+        cached = stored;
+        return Result.success(toAccount(session, stored));
+    }
+
+    /** Nome da conta online criada a partir de uma conta antiga deste aparelho. */
+    private static String localName(LegacyData.Account local, String email) {
+        String name = local.name == null ? "" : local.name.trim();
+        if (name.isEmpty()) name = emailPrefix(email);
+        return name.length() <= MAX_NAME_LENGTH ? name : name.substring(0, MAX_NAME_LENGTH).trim();
     }
 
     private static Account toAccount(PlayerBackend.Session session, PlayerBackend.Account data) {
@@ -329,7 +345,7 @@ public final class AccountStore {
         }
     }
 
-    /** Dados da conta. Imagens em JPEG Base64; {@code null} usa o padrão. */
+    /** Dados da conta. Imagens: o endereço delas na API; {@code null} usa o padrão. */
     public static final class Account {
         public final String id;
         public final String name;

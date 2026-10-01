@@ -20,13 +20,13 @@ if (comicVineApiKey.isBlank() && comicVineBaseUrl.contains("comicvine.gamespot.c
     logger.warn("⚠️  COMIC_VINE_API_KEY não encontrada em local.properties — o jogo só funciona com cache. Veja o README.")
 }
 
-// Amigos online (Firebase Auth + Firestore). Com app/google-services.json o plugin gera a
-// configuração do projeto; sem ele o app compila igual e a aba de amigos avisa que não está
-// configurada. FIREBASE_EMULATOR_HOST (só no debug) usa o Firebase Local Emulator Suite.
-if (file("google-services.json").exists()) {
-    apply(plugin = libs.plugins.google.services.get().pluginId)
-}
-val firebaseEmulatorHost: String = localProps.getProperty("FIREBASE_EMULATOR_HOST", "")
+// Conta, dados do jogador e amigos moram na API do O Vigia (repositório ms-o-vigia).
+// OVIGIA_API_URL vem do local.properties ou, no CI, da variável de ambiente. Sem ela o app
+// compila igual e as telas de conta e amigos avisam que não estão disponíveis.
+// OVIGIA_API_URL_DEBUG (opcional) aponta o build de debug para outro servidor — por exemplo
+// http://10.0.2.2:8080/ para a API rodando no computador, vista do emulador.
+val ovigiaApiUrl: String = localProps.getProperty("OVIGIA_API_URL") ?: System.getenv("OVIGIA_API_URL") ?: ""
+val ovigiaApiUrlDebug: String = localProps.getProperty("OVIGIA_API_URL_DEBUG", ovigiaApiUrl)
 
 // Assinatura de release: keystore.properties (fora do git) ou variáveis de ambiente no CI.
 val keystoreProps = rootProperties("keystore.properties")
@@ -52,7 +52,7 @@ android {
 
         buildConfigField("String", "COMIC_VINE_API_KEY", "\"$comicVineApiKey\"")
         buildConfigField("String", "COMIC_VINE_BASE_URL", "\"$comicVineBaseUrl\"")
-        buildConfigField("String", "FIREBASE_EMULATOR_HOST", "\"\"")
+        buildConfigField("String", "OVIGIA_API_URL", "\"$ovigiaApiUrl\"")
     }
 
     signingConfigs {
@@ -71,7 +71,7 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            buildConfigField("String", "FIREBASE_EMULATOR_HOST", "\"$firebaseEmulatorHost\"")
+            buildConfigField("String", "OVIGIA_API_URL", "\"$ovigiaApiUrlDebug\"")
         }
         release {
             // R8: remove código/recursos não usados e ofusca. Regras em src/main/keepRules.
@@ -129,7 +129,7 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.savedstate)
     implementation(libs.lifecycle.livedata)
 
-    // Rede (Comic Vine)
+    // Rede (Comic Vine e a API do O Vigia)
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp.logging)
@@ -138,17 +138,13 @@ dependencies {
     implementation(libs.glide)
     annotationProcessor(libs.glide.compiler)
 
-    // Amigos online
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.auth)
-    implementation(libs.firebase.firestore)
-
     // Tradução dos textos da Comic Vine (em inglês): no aparelho, sem chave nem custo
     implementation(libs.mlkit.translate)
     implementation(libs.jsoup)
 
     testImplementation(libs.junit)
     testImplementation(libs.arch.core.testing)
+    testImplementation(libs.okhttp.mockwebserver)
 
     // Só o tradutor do aparelho precisa de aparelho para ser testado.
     androidTestImplementation(libs.androidx.test.junit)

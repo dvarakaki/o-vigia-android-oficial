@@ -178,6 +178,8 @@ public class ResultFragment extends Fragment {
         String imageUrl = args.getString(ARG_IMAGE_URL);
         container.ioExecutor.execute(() -> {
             String account = container.accountStore.currentAccountId();
+            // Jogou sem conta e entrou agora: a partida passa a contar, e é ela que desbloqueia o herói.
+            container.learningStore.claimGuestGame(account, characterId);
             boolean added = account != null && container.collectionStore.save(account, characterId, name, imageUrl);
             // Entra na fila do mesmo executor de I/O, logo atrás da gravação acima:
             // o herói novo já conta quando as conquistas forem recalculadas.

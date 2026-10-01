@@ -23,7 +23,8 @@ import java.util.Base64;
 
 /**
  * Foto e banner de um jogador — o próprio ou um amigo —, que vêm da conta
- * online como JPEG em Base64.
+ * online como o endereço da imagem guardada na API (ou, logo depois de escolher
+ * uma nova, o JPEG em Base64 que ainda está subindo).
  *
  * Sem imagem — ou com uma que não abre (arquivo sumido, JPEG corrompido) — entram
  * os padrões do app: o ícone de pessoa na foto e a galáxia com a tinta
@@ -35,18 +36,18 @@ public final class PlayerImages {
     private static final int OWN_CROSS_FADE_MS = 200;
 
     /** Foto do próprio perfil; {@code null} mostra o ícone padrão. */
-    public static void bindAvatar(Fragment fragment, ImageView view, @Nullable String base64) {
+    public static void bindAvatar(Fragment fragment, ImageView view, @Nullable String image) {
         int padding = fragment.getResources().getDimensionPixelSize(R.dimen.avatar_icon_padding);
-        byte[] bytes = decode(base64);
-        avatar(fragment, view, bytes == null ? null : Glide.with(fragment).load(bytes)
-                .transition(DrawableTransitionOptions.withCrossFade(OWN_CROSS_FADE_MS)), padding);
+        RequestBuilder<Drawable> request = load(fragment, image);
+        avatar(fragment, view, request == null ? null
+                : request.transition(DrawableTransitionOptions.withCrossFade(OWN_CROSS_FADE_MS)), padding);
     }
 
     /** Banner do próprio perfil; {@code null} mostra a galáxia com a tinta ({@code tint}). */
-    public static void bindBanner(Fragment fragment, ImageView view, View tint, @Nullable String base64) {
-        byte[] bytes = decode(base64);
-        banner(fragment, view, tint, bytes == null ? null : Glide.with(fragment).load(bytes)
-                .transition(DrawableTransitionOptions.withCrossFade(OWN_CROSS_FADE_MS)));
+    public static void bindBanner(Fragment fragment, ImageView view, View tint, @Nullable String image) {
+        RequestBuilder<Drawable> request = load(fragment, image);
+        banner(fragment, view, tint, request == null ? null
+                : request.transition(DrawableTransitionOptions.withCrossFade(OWN_CROSS_FADE_MS)));
     }
 
     /**
@@ -54,15 +55,13 @@ public final class PlayerImages {
      *
      * @param iconPaddingPx respiro do ícone padrão quando não há foto
      */
-    public static void bindSharedAvatar(Fragment fragment, ImageView view, @Nullable String base64, int iconPaddingPx) {
-        byte[] bytes = decode(base64);
-        avatar(fragment, view, bytes == null ? null : Glide.with(fragment).load(bytes), iconPaddingPx);
+    public static void bindSharedAvatar(Fragment fragment, ImageView view, @Nullable String image, int iconPaddingPx) {
+        avatar(fragment, view, load(fragment, image), iconPaddingPx);
     }
 
     /** Banner publicado por outro jogador, com os mesmos padrões do próprio perfil. */
-    public static void bindSharedBanner(Fragment fragment, ImageView view, View tint, @Nullable String base64) {
-        byte[] bytes = decode(base64);
-        banner(fragment, view, tint, bytes == null ? null : Glide.with(fragment).load(bytes));
+    public static void bindSharedBanner(Fragment fragment, ImageView view, View tint, @Nullable String image) {
+        banner(fragment, view, tint, load(fragment, image));
     }
 
     private static void avatar(Fragment fragment, ImageView view, @Nullable RequestBuilder<Drawable> image,
@@ -121,6 +120,15 @@ public final class PlayerImages {
                 return false;
             }
         };
+    }
+
+    /** O pedido ao Glide: endereço na API, ou JPEG em Base64; {@code null} sem imagem. */
+    @Nullable
+    private static RequestBuilder<Drawable> load(Fragment fragment, @Nullable String image) {
+        if (image == null || image.isEmpty()) return null;
+        if (image.startsWith("https://") || image.startsWith("http://")) return Glide.with(fragment).load(image);
+        byte[] bytes = decode(image);
+        return bytes == null ? null : Glide.with(fragment).load(bytes);
     }
 
     @Nullable

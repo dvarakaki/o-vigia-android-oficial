@@ -27,7 +27,7 @@ import java.util.Set;
  * enxurrada de cartões em quem acabou de entrar com a coleção pronta (ver
  * {@link AchievementsTracker}).
  *
- * Operações bloqueantes (rede, ou o cache do Firebase sem ela): chamar fora da
+ * Operações bloqueantes (rede, ou a cópia do aparelho sem ela): chamar fora da
  * main thread. Thread-safe.
  */
 public final class AchievementsStore {

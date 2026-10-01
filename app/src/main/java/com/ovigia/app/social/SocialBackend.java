@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * Servidor dos amigos online, para a conta com sessão aberta (o login é do
- * {@code PlayerBackend}). A implementação real é o {@link FirebaseSocialBackend};
+ * {@code PlayerBackend}). A implementação real é o {@link ApiSocialBackend};
  * os testes usam um falso em memória.
  *
  * Todas as operações são bloqueantes (rede): chamar fora da main thread.
@@ -26,7 +26,10 @@ public interface SocialBackend {
      */
     void claimUsername(UserCard card, @Nullable String previousUsername) throws SocialException;
 
-    /** Grava o cartão e o perfil da conta conectada. */
+    /**
+     * Grava o cartão e o perfil da conta conectada. Com a API, o servidor monta o
+     * perfil a partir dos próprios dados, e isto não precisa fazer nada.
+     */
     void publish(PublicProfile profile) throws SocialException;
 
     /** Cartão de quem usa {@code username} (já normalizado), ou {@code null}. */
@@ -48,16 +51,25 @@ public interface SocialBackend {
     /** Propostas de troca em que a conta conectada está, de um lado ou do outro, em qualquer status. */
     List<TradeOffer> loadTrades() throws SocialException;
 
-    /** Grava a proposta ({@code trade.from} precisa ser a conta conectada; o status é ignorado). */
-    void proposeTrade(TradeOffer trade) throws SocialException;
+    /**
+     * Grava a proposta ({@code trade.from} precisa ser a conta conectada; id e status
+     * são ignorados).
+     *
+     * @return a proposta como ficou no servidor, com o id dela
+     */
+    TradeOffer proposeTrade(TradeOffer trade) throws SocialException;
 
     /**
      * Aceita a proposta {@code tradeId} feita à conta conectada, trocando o herói
      * oferecido por {@code chosenOffer} (o mesmo, ou outro do catálogo de quem propôs).
+     * Os dois ganham o herói do outro na hora.
      */
     void acceptTrade(String tradeId, PublicProfile.Hero chosenOffer) throws SocialException;
 
-    /** Apaga a proposta (recusar, cancelar, ou concluir depois de aceita). */
+    /**
+     * Tira a proposta da lista: recusa (se veio para mim), cancela (se fui eu que
+     * propus) ou, depois de aceita, marca que quem propôs já viu.
+     */
     void deleteTrade(String tradeId) throws SocialException;
 
     /** Perfil completo de um amigo (ou da própria conta). */

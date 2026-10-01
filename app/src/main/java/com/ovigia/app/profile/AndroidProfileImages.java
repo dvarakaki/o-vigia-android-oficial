@@ -23,7 +23,7 @@ public final class AndroidProfileImages implements ProfileImages {
 
     static final int AVATAR_MAX_PX = 256;
     static final int BANNER_MAX_PX = 1080;
-    /** Tamanho máximo do texto em Base64 (as regras do Firestore aceitam 60 mil e 400 mil). */
+    /** Tamanho máximo do texto em Base64: imagens leves para a conta e para os amigos baixarem. */
     static final int AVATAR_MAX_CHARS = 55_000;
     static final int BANNER_MAX_CHARS = 380_000;
     private static final int START_QUALITY = 85;

@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Só no debug: o Firebase Local Emulator Suite fala HTTP sem TLS. Libera tráfego
-  sem criptografia apenas para o host do computador visto pelo emulador Android
-  (10.0.2.2) e para localhost; o resto continua exigindo HTTPS.
+  Só no debug: a API rodando no computador (docker compose do ms-o-vigia) fala
+  HTTP sem TLS. Libera tráfego sem criptografia apenas para o host do computador
+  visto pelo emulador Android (10.0.2.2) e para localhost; o resto continua
+  exigindo HTTPS.
 -->
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">

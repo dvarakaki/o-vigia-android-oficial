@@ -8,6 +8,7 @@ import com.ovigia.app.learning.LearningStore;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.concurrent.Executor;
 
 import static org.junit.Assert.assertEquals;
@@ -15,7 +16,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-/** Os amigos da conta logada, contra o Firebase falso em memória. */
+/** Os amigos da conta logada, contra o servidor falso em memória. */
 public class SocialRepositoryTest {
 
     private final Executor direct = Runnable::run;
@@ -33,6 +34,13 @@ public class SocialRepositoryTest {
         learning = new LearningStore(backend);
         repository = new SocialRepository(backend, accounts, collection, learning, () -> null, direct, () -> 42L);
         accounts.signUp("Davi", "davi@exemplo.com", "segredo#1");
+        backend.rosterNames.put(1455, "Iron Man");
+    }
+
+    /** O Vigia acertou o Homem de Ferro: a partida desbloqueia o herói no servidor. */
+    private void winIronMan(String id) {
+        learning.recordGame(id, 1455, new ArrayList<>(), LearningStore.Outcome.ENGINE_GUESSED);
+        collection.save(id, 1455, "Iron Man", "http://img/ironman.jpg");
     }
 
     private SocialRepository.Session readyAs(String username) throws SocialException {
@@ -86,7 +94,7 @@ public class SocialRepositoryTest {
     @Test
     public void publishedProfile_carriesHeroesStatsAndAchievements_fromTheAccount() throws SocialException {
         String id = accounts.currentAccountId();
-        collection.save(id, 1455, "Iron Man", "http://img/ironman.jpg");
+        winIronMan(id);
         accounts.updateProfile("Davi", "Fã do Wolverine");
         accounts.setImage(AccountStore.ImageKind.AVATAR, "foto-base64");
         accounts.setImage(AccountStore.ImageKind.BANNER, "banner-base64");
@@ -95,11 +103,11 @@ public class SocialRepositoryTest {
 
         PublicProfile published = backend.lastPublished;
         assertEquals("Fã do Wolverine", published.bio);
-        assertEquals("foto-base64", published.card.avatar);
-        assertEquals("banner-base64", published.banner);
+        assertEquals(FakeCloud.urlOf("foto-base64"), published.card.avatar);
+        assertEquals(FakeCloud.urlOf("banner-base64"), published.banner);
         assertEquals(1, published.heroes.size());
         assertEquals("Iron Man", published.heroes.get(0).name);
-        assertEquals(1, published.gamesPlayed);
+        assertEquals(2, published.gamesPlayed);
         assertEquals(1, published.playerWins());
         assertEquals(42L, published.updatedAt);
         assertTrue(published.achievements.get(Achievement.FIRST_HERO.ordinal()).isUnlocked());
@@ -108,7 +116,7 @@ public class SocialRepositoryTest {
 
     @Test
     public void anotherDevice_publishesTheSameProfile() throws SocialException {
-        collection.save(accounts.currentAccountId(), 1455, "Iron Man", "img");
+        winIronMan(accounts.currentAccountId());
         readyAs("davi");
 
         // Outro aparelho: só entra na conta — heróis, @usuario e números vêm dela.

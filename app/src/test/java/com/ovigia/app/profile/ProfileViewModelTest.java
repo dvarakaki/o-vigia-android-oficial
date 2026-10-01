@@ -69,7 +69,7 @@ public class ProfileViewModelTest {
         ProfileUiState state = vm.state().getValue();
         assertEquals("Davi A.", state.accountName);
         assertEquals("Fã do Wolverine", state.accountBio);
-        assertEquals("banner-base64", state.banner);
+        assertEquals(FakeCloud.urlOf("banner-base64"), state.banner);
     }
 
     @Test

@@ -8,9 +8,6 @@ import com.ovigia.app.legacy.LegacyFiles;
 import com.ovigia.app.legacy.LegacyMigration;
 import com.ovigia.app.learning.LearningStore.Outcome;
 import com.ovigia.app.profile.FakeProfileImages;
-import com.ovigia.app.social.Achievements;
-import com.ovigia.app.social.PublicProfile;
-import com.ovigia.app.social.UserCard;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -19,7 +16,7 @@ import org.junit.rules.TemporaryFolder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
@@ -47,7 +44,7 @@ public class AccountStoreTest {
 
     /** Uma instalação do app (neste aparelho, com os arquivos antigos que houver nele). */
     private AccountStore newStore() {
-        return new AccountStore(cloud, new LegacyMigration(cloud, cloud, legacy.data(), new FakeProfileImages()));
+        return new AccountStore(cloud, new LegacyMigration(cloud, legacy.data(), new FakeProfileImages()));
     }
 
     private String uid() {
@@ -135,7 +132,7 @@ public class AccountStoreTest {
         AccountStore.Account account = other.currentAccount();
         assertEquals("Davi Souza", account.name);
         assertEquals("Fã do Surfista", account.bio);
-        assertEquals("foto-base64", account.avatar);
+        assertEquals("a foto fica guardada na API", FakeCloud.urlOf("foto-base64"), account.avatar);
     }
 
     // ---------------------------------------------------------------- perfil
@@ -158,8 +155,8 @@ public class AccountStoreTest {
         store.signUp("Davi", "davi@exemplo.com", "segredo#1");
 
         store.setImage(ImageKind.BANNER, "banner-base64");
-        assertEquals("banner-base64", cloud.account(uid()).banner);
-        assertEquals("banner-base64", store.currentAccount().image(ImageKind.BANNER));
+        assertEquals(FakeCloud.urlOf("banner-base64"), cloud.account(uid()).banner);
+        assertEquals(FakeCloud.urlOf("banner-base64"), store.currentAccount().image(ImageKind.BANNER));
 
         store.setImage(ImageKind.BANNER, null);
         assertNull(cloud.account(uid()).banner);
@@ -256,7 +253,7 @@ public class AccountStoreTest {
         PlayerBackend.Account account = cloud.account(id);
         assertEquals("Davi", account.name);
         assertEquals("Bio antiga", account.bio);
-        assertEquals("avatar-avatar_local.jpg", account.avatar);
+        assertEquals("a foto antiga subiu para a API", FakeCloud.urlOf("avatar-avatar_local.jpg"), account.avatar);
         assertEquals(Arrays.asList("FIRST_HERO"), account.celebrated);
         assertEquals(1, cloud.heroesOf(id).size());
         assertEquals(1455, cloud.heroesOf(id).get(0).characterId);
@@ -279,15 +276,16 @@ public class AccountStoreTest {
     }
 
     @Test
-    public void linkedAccountFromAnOldVersion_joinsWhatWasPublished_withWhatStayedOnTheDevice() throws Exception {
-        // O servidor antigo só guardava o que era publicado para os amigos.
+    public void linkedAccountFromAnOldVersion_joinsWhatTheServerImported_withWhatStayedOnTheDevice()
+            throws Exception {
+        // O que a conta tinha no Firebase já foi levado para a API pela importação do servidor.
         String uid = cloud.createUser("davi@exemplo.com", "segredo#1");
-        UserCard card = new UserCard(uid, "davi", "Davi", "foto-publicada");
-        List<PublicProfile.Hero> published = new ArrayList<>();
-        published.add(new PublicProfile.Hero(1455, "Iron Man", "img", 100));
-        published.add(new PublicProfile.Hero(1699, "Wolverine", "img", 200));
-        cloud.putProfile(new PublicProfile(card, "Bio publicada", "banner-publicado", 9, 4, 5, published,
-                Achievements.fromPublished(null), 1L));
+        cloud.putAccount(uid, new PlayerBackend.Account("Davi", "Bio publicada", "https://media.test/foto.jpg",
+                "https://media.test/banner.jpg", "davi", null));
+        cloud.grantHero(uid, new PlayerBackend.Hero(1455, "Iron Man", null, 100, true));
+        cloud.grantHero(uid, new PlayerBackend.Hero(1699, "Wolverine", null, 200, true));
+        cloud.importLearning(uid, new PlayerBackend.Learning(9, 4, new HashMap<>(), new HashMap<>()),
+                new ArrayList<>());
         // E este aparelho tinha 2 partidas e um herói que o outro não publicou.
         legacy.account("local-1", "Davi", "davi@exemplo.com", "segredo#1", uid, "davi", null);
         legacy.collection("local-1", "[{\"characterId\":1455,\"name\":\"Iron Man\",\"savedAt\":100},"
@@ -298,10 +296,12 @@ public class AccountStoreTest {
 
         PlayerBackend.Account account = cloud.account(uid);
         assertEquals("davi", account.username);
-        assertEquals("Bio publicada", account.bio);
-        assertEquals("foto-publicada", account.avatar);
-        assertEquals("banner-publicado", account.banner);
-        assertEquals("heróis publicados + o que só estava aqui", 3, cloud.heroesOf(uid).size());
+        assertEquals("nada que já estava na conta muda", "Bio publicada", account.bio);
+        assertEquals("https://media.test/foto.jpg", account.avatar);
+        assertEquals("https://media.test/banner.jpg", account.banner);
+        assertEquals("heróis importados + o que só estava aqui", 3, cloud.heroesOf(uid).size());
+        assertEquals("o que já estava na conta fica com a data de lá", 200,
+                cloud.heroesOf(uid).stream().filter(h -> h.characterId == 1699).findFirst().get().unlockedAt);
         PlayerBackend.Learning learning = cloud.learningOf(uid);
         assertEquals("os totais ficam com o maior, sem contar em dobro", 9, learning.gamesPlayed);
         assertEquals(4, learning.engineWins);

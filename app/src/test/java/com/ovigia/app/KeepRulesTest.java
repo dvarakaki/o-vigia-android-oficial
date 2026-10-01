@@ -33,8 +33,8 @@ import static org.junit.Assert.assertTrue;
  *
  * Ao criar um arquivo novo em JSON (ou um tipo novo dentro de um existente), inclua
  * a classe raiz aqui e a regra no rules.keep. (Os dados do jogador não passam por
- * aqui: vão para o Firestore campo a campo, e os arquivos das versões antigas são
- * lidos como árvore JSON pela {@code LegacyData}, sem reflexão.)
+ * aqui: a API, a cópia no aparelho e os arquivos das versões antigas são lidos
+ * como árvore JSON, sem reflexão.)
  */
 public class KeepRulesTest {
 

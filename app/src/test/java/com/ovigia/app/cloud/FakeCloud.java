@@ -22,25 +22,27 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * O Firebase inteiro em memória, para os testes: login (Firebase Auth), os
- * dados da conta ({@link PlayerBackend}) e os amigos ({@link SocialBackend}),
- * com as mesmas garantias do firestore.rules — @usuario único, amizade só a
- * partir de um pedido pendente (aceito por quem recebeu), perfil completo
- * visível só para o dono e os amigos, troca só entre amigos (aceita uma vez, por
- * quem recebeu) e dados da conta só para o dono.
+ * A API do O Vigia inteira em memória, para os testes: login, os dados da conta
+ * ({@link PlayerBackend}) e os amigos ({@link SocialBackend}), com as mesmas
+ * garantias do servidor — @usuario único, amizade só a partir de um pedido
+ * pendente (aceito por quem recebeu), perfil completo visível só para o dono e
+ * os amigos, troca só entre amigos (aceita uma vez, por quem recebeu, e os dois
+ * ganham o herói na hora), herói desbloqueado só pela partida que o Vigia
+ * acertou (ou troca, ou importação) e dados da conta só para o dono.
  */
 public final class FakeCloud implements PlayerBackend, SocialBackend {
 
     public boolean configured = true;
     /** Login, amigos e operações da conta que exigem rede falham com OFFLINE. */
     public boolean offline = false;
-    /** Sem rede e sem cópia no aparelho: ler a conta falha com OFFLINE (o cache do Firebase está vazio). */
+    /** Sem rede e sem cópia no aparelho: ler a conta falha com OFFLINE (o aparelho não tem cópia). */
     public boolean accountUnreachable = false;
     /** Toda operação de rede estoura com essa exceção (um bug do SDK, por exemplo). */
     public RuntimeException operationFailure = null;
 
     public int publishCount = 0;
     public int signOutCount = 0;
+    public int flushCount = 0;
     public PublicProfile lastPublished;
     /** E-mail novo pedido por {@link #requestEmailChange}, esperando a confirmação pelo link. */
     public String pendingEmail;
@@ -84,6 +86,11 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
         emailByUid.put(uid, email);
         passwordByUid.put(uid, password);
         return uid;
+    }
+
+    /** Põe os dados de uma conta direto no "servidor" (como a importação do Firebase deixou). */
+    public void putAccount(String uid, Account account) {
+        accounts.put(uid, account);
     }
 
     /** Troca a sessão para outra conta, como se ela usasse o app em outro aparelho. */
@@ -166,12 +173,17 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
         return currentSession();
     }
 
+    /** Nome com que cada conta foi criada pelo app (a API guarda junto com o login). */
+    public final Map<String, String> signUpNames = new HashMap<>();
+
     @Override
-    public Session signUp(String email, String password) throws CloudException {
+    public Session signUp(String email, String password, String displayName) throws CloudException {
         checkOnline();
         if (uidByEmail.containsKey(email)) throw new CloudException(CloudException.Reason.EMAIL_IN_USE);
         if (password == null || password.length() < 6) throw new CloudException(CloudException.Reason.WEAK_PASSWORD);
         signedInUid = createUser(email, password);
+        signUpNames.put(signedInUid, displayName);
+        accounts.put(signedInUid, new Account(displayName, null, null, null, null, null));
         return currentSession();
     }
 
@@ -241,10 +253,25 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
         return accounts.get(uid);
     }
 
+    /** Endereço que a "API" dá a uma imagem enviada em Base64. */
+    public static String urlOf(String base64) {
+        return "https://media.test/" + Integer.toHexString(base64.hashCode()) + ".jpg";
+    }
+
     @Override
-    public void saveAccount(String uid, Account account) {
+    public Account saveAccount(String uid, Account account) throws CloudException {
+        checkOwner(uid);
+        checkOnline();
         Account old = accounts.get(uid);
-        accounts.put(uid, account.withCelebrated(old == null ? null : old.celebrated));
+        // O @usuario é do SocialBackend (claimUsername); as imagens novas viram endereço.
+        Account stored = new Account(account.name, account.bio, stored(account.avatar), stored(account.banner),
+                old == null ? null : old.username, old == null ? null : old.celebrated);
+        accounts.put(uid, stored);
+        return stored.withCelebrated(account.celebrated);
+    }
+
+    private static String stored(@Nullable String image) {
+        return image == null || image.startsWith("https://") ? image : urlOf(image);
     }
 
     @Override
@@ -264,9 +291,22 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
         return heroesOf(uid);
     }
 
+    /** Põe um herói direto na conta (como se viesse de antes, ou de outro aparelho). */
+    public void grantHero(String uid, Hero hero) {
+        heroes.computeIfAbsent(uid, k -> new LinkedHashMap<>()).putIfAbsent(hero.characterId, hero);
+    }
+
+    /** Nome dos personagens no elenco do "servidor". */
+    public final Map<Integer, String> rosterNames = new HashMap<>();
+
+    /** O que a última partida de cada personagem fez: true se pôs o herói na coleção. */
+    private final Map<Integer, Boolean> grants = new HashMap<>();
+
+    @Nullable
     @Override
-    public void saveHero(String uid, Hero hero) {
-        heroes.computeIfAbsent(uid, k -> new LinkedHashMap<>()).put(hero.characterId, hero);
+    public Boolean awaitUnlock(String uid, int characterId) {
+        flushCount++;
+        return grants.remove(characterId);
     }
 
     @Override
@@ -298,6 +338,13 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
                 sumCount[1] += 1;
             }
             games.computeIfAbsent(uid, k -> new ArrayList<>()).add(game);
+            // Como a API: a partida em que o Vigia acertou desbloqueia o herói.
+            if (com.ovigia.app.catalog.UnlockRules.unlocks(game.outcome)) {
+                boolean isNew = !heroes.getOrDefault(uid, new LinkedHashMap<>()).containsKey(game.characterId);
+                grantHero(uid, new Hero(game.characterId, rosterNames.getOrDefault(game.characterId, ""), null,
+                        game.timestamp, false));
+                grants.put(game.characterId, isNew);
+            }
         }
         learning.put(uid, new Learning(l.gamesPlayed + 1, l.engineWins + (engineWin ? 1 : 0), picks, beliefs));
     }
@@ -318,7 +365,20 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
         games.remove(uid);
     }
 
+    /** Quantas vezes a importação das versões antigas rodou. */
+    public int legacyImports = 0;
+
     @Override
+    public void importLegacy(String uid, LegacyImport data) throws CloudException {
+        checkOwner(uid);
+        checkOnline();
+        legacyImports++;
+        for (Hero h : data.heroes) grantHero(uid, h);
+        importLearning(uid, data.learning, data.games);
+        if (data.celebrated != null) addCelebrated(uid, data.celebrated, true);
+    }
+
+    /** Soma aprendizado na conta (como a importação faz com o que veio das versões antigas). */
     public void importLearning(String uid, Learning imported, List<Game> importedGames) {
         Learning l = learningOf(uid);
         Map<Integer, Integer> picks = new HashMap<>(l.picks);
@@ -377,6 +437,8 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
         if (previousUsername != null && !previousUsername.equals(card.username)) uidByUsername.remove(previousUsername);
         uidByUsername.put(card.username, uid);
         cards.put(uid, card);
+        Account old = accounts.get(uid);
+        if (old != null) accounts.put(uid, old.withUsername(card.username));
     }
 
     @Override
@@ -460,7 +522,7 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
     }
 
     @Override
-    public void proposeTrade(TradeOffer trade) throws SocialException {
+    public TradeOffer proposeTrade(TradeOffer trade) throws SocialException {
         String uid = requireUid();
         if (!uid.equals(trade.from.uid) || uid.equals(trade.to.uid) || !friendsOf(uid).contains(trade.to.uid)
                 || trade.want.characterId == trade.offer.characterId
@@ -468,8 +530,10 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
                 || trades.containsKey(trade.id)) {
             throw new SocialException(SocialException.Error.PERMISSION_DENIED);
         }
-        trades.put(trade.id, new TradeOffer(trade.id, trade.from, trade.to, trade.want, trade.offer,
-                TradeOffer.Status.PENDING, trade.createdAt));
+        TradeOffer stored = new TradeOffer(trade.id, trade.from, trade.to, trade.want, trade.offer,
+                TradeOffer.Status.PENDING, trade.createdAt);
+        trades.put(trade.id, stored);
+        return stored;
     }
 
     @Override
@@ -483,6 +547,10 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
         }
         trades.put(tradeId, new TradeOffer(t.id, t.from, t.to, t.want, chosenOffer, TradeOffer.Status.ACCEPTED,
                 t.createdAt));
+        // Como a API: os dois ganham o herói do outro na hora.
+        long now = System.currentTimeMillis();
+        grantHero(uid, new Hero(chosenOffer.characterId, chosenOffer.name, chosenOffer.imageUrl, now, false));
+        grantHero(t.from.uid, new Hero(t.want.characterId, t.want.name, t.want.imageUrl, now, false));
     }
 
     @Override

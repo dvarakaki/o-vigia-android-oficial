@@ -8,7 +8,7 @@ public final class SocialException extends Exception {
     private static final String TAG = "SocialException";
 
     public enum Error {
-        /** O app foi compilado sem configuração do Firebase. */
+        /** O app foi compilado sem o endereço da API. */
         NOT_CONFIGURED,
         /** Sem internet ou o servidor não respondeu a tempo. */
         OFFLINE,

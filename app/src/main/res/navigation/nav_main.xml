@@ -36,7 +36,7 @@
         android:name="com.ovigia.app.ui.profile.EditProfileFragment"
         tools:layout="@layout/fragment_edit_profile" />
 
-    <!-- Amigos online (Firebase); exige sessão local como o perfil. -->
+    <!-- Amigos online (API do O Vigia); exige sessão como o perfil. -->
     <fragment
         android:id="@+id/friendsFragment"
         android:name="com.ovigia.app.ui.friends.FriendsFragment"
