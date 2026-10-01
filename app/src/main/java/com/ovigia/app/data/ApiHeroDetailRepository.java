@@ -3,10 +3,9 @@ package com.ovigia.app.data;
 import android.util.Log;
 
 import com.google.gson.Gson;
-import com.ovigia.app.api.ApiClient;
-import com.ovigia.app.api.ComicVineService;
+import com.ovigia.app.api.CharacterService;
 import com.ovigia.app.data.CharacterRepository.LoadError;
-import com.ovigia.app.data.ComicVineResponses.Failure;
+import com.ovigia.app.data.CharacterResponses.Failure;
 import com.ovigia.app.model.CharacterDetail;
 import com.ovigia.app.model.ComicVineResponse;
 import com.ovigia.app.util.AtomicFiles;
@@ -20,12 +19,11 @@ import java.util.function.Supplier;
 import retrofit2.Response;
 
 /**
- * Busca a ficha completa na Comic Vine e guarda cada herói em
- * {@code files/hero_details/{id}.json}: a ficha abre na hora nas próximas vezes,
- * funciona offline e não gasta o limite de requisições da API. Um cache vencido
- * ainda serve de último recurso se a rede falhar.
+ * Busca a ficha completa na API do O Vigia e guarda cada herói em
+ * {@code files/hero_details_v2/{id}.json}: a ficha abre na hora nas próximas vezes e
+ * funciona offline. Um cache vencido ainda serve de último recurso se a rede falhar.
  */
-public final class ComicVineHeroDetailRepository implements HeroDetailRepository {
+public final class ApiHeroDetailRepository implements HeroDetailRepository {
 
     private static final String TAG = "HeroDetailRepository";
     private static final long TTL_MILLIS = TimeUnit.DAYS.toMillis(30);
@@ -42,7 +40,7 @@ public final class ComicVineHeroDetailRepository implements HeroDetailRepository
     private final Executor mainExecutor;
     private final Gson gson = new Gson();
 
-    public ComicVineHeroDetailRepository(Remote remote, boolean apiConfigured, Supplier<File> directory,
+    public ApiHeroDetailRepository(Remote remote, boolean apiConfigured, Supplier<File> directory,
                                          Executor ioExecutor, Executor mainExecutor) {
         this.remote = remote;
         this.apiConfigured = apiConfigured;
@@ -52,15 +50,15 @@ public final class ComicVineHeroDetailRepository implements HeroDetailRepository
     }
 
     /** Remote real, sobre o serviço Retrofit. */
-    public static Remote remote(ComicVineService service, String apiKey) {
-        return id -> service.characterDetail(id, apiKey, ApiClient.FORMAT).execute();
+    public static Remote remote(CharacterService service) {
+        return id -> service.detail(id).execute();
     }
 
     @Override
     public void load(int characterId, boolean forceRefresh, Callback callback) {
         ioExecutor.execute(() -> {
             File file = new File(directory.get(), characterId + ".json");
-            if (!forceRefresh && file.exists() && !ComicVineResponses.isExpired(file, TTL_MILLIS)) {
+            if (!forceRefresh && file.exists() && !CharacterResponses.isExpired(file, TTL_MILLIS)) {
                 CharacterDetail cached = read(file);
                 if (cached != null) {
                     mainExecutor.execute(() -> callback.onSuccess(cached, false));
@@ -95,9 +93,10 @@ public final class ComicVineHeroDetailRepository implements HeroDetailRepository
             Log.w(TAG, "Resposta ilegível", e);
             throw new Failure(LoadError.SERVER_ERROR);
         }
-        ComicVineResponse<CharacterDetail> body = ComicVineResponses.body(response);
-        if (body.statusCode == ComicVineResponses.STATUS_NOT_FOUND) throw new Failure(LoadError.NOT_FOUND);
-        return ComicVineResponses.results(body);
+        if (response.code() == 404) throw new Failure(LoadError.NOT_FOUND);
+        ComicVineResponse<CharacterDetail> body = CharacterResponses.body(response);
+        if (body.statusCode == CharacterResponses.STATUS_NOT_FOUND) throw new Failure(LoadError.NOT_FOUND);
+        return CharacterResponses.results(body);
     }
 
     private CharacterDetail read(File file) {

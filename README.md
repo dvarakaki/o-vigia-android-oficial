@@ -93,25 +93,25 @@ flowchart LR
 
 **Requisitos:** Android Studio (JDK 17+ embutido) e Android SDK 36. O app roda a partir do Android 9 (API 28).
 
-1. Crie uma chave gratuita da API em <https://comicvine.gamespot.com/api/>.
-2. Adicione a chave ao `local.properties` na raiz do projeto (fora do git):
+1. Aponte o app para a API do O Vigia no `local.properties` na raiz do projeto (fora do git),
+   como em [Conta e amigos online](#conta-e-amigos-online):
 
    ```properties
-   COMIC_VINE_API_KEY=sua_chave_aqui
+   OVIGIA_API_URL=https://api.exemplo.com/
    ```
 
-3. Rode pelo Android Studio ou pela linha de comando:
+2. Rode pelo Android Studio ou pela linha de comando:
 
    ```bash
    ./gradlew installDebug
    ```
 
 O build de debug usa o id `com.ovigia.app.debug` e pode ficar instalado ao lado do de release.
-Sem a chave, o jogo funciona apenas com o que já estiver em cache.
+Sem o endereço da API, o jogo funciona apenas com o que já estiver em cache.
 
 ## Conta e amigos online
 
-A conta, a coleção, o aprendizado do Vigia e a aba de amigos — pedidos de amizade, perfis,
+As fichas dos personagens, a conta, a coleção, o aprendizado do Vigia e a aba de amigos — pedidos de amizade, perfis,
 conquistas e troca de heróis — ficam na **API do O Vigia**
 ([ms-o-vigia](https://github.com/dvarakaki/ms-o-vigia), Spring Boot + PostgreSQL). Sem o
 endereço da API o app compila e roda normalmente, só que sem conta online.
@@ -150,6 +150,10 @@ Para subir a API localmente, siga o README do ms-o-vigia (`docker compose up`).
 - **Atualizar o app não perde nada.** Na primeira vez que uma conta entra nesta versão, o que as
   versões antigas guardavam (conta local, heróis, aprendizado, histórico e fotos) é importado
   para a API (`legacy/LegacyMigration`).
+- **As fichas moram no nosso banco.** Nome, gênero, origem, retratos, biografia, times,
+  poderes, aliados, inimigos e edições vieram da Comic Vine uma vez (o seed do ms-o-vigia) e
+  agora são servidos pela API, no mesmo formato: o app não fala mais com a Comic Vine nem
+  carrega chave dela.
 - **O elenco vem da API.** `GET /v1/characters` (com ETag) traz personagens novos sem atualizar
   o app; o `assets/roster.json` vale enquanto a API nunca respondeu.
 
@@ -188,7 +192,6 @@ flowchart LR
     UI["Fragments<br/>ui/"] --> VM["ViewModels<br/>LiveData"]
     VM --> ENG["engine/<br/>motor bayesiano"]
     VM --> REPO["data/ · social/<br/>translation/"]
-    REPO --> CV[("Comic Vine API")]
     REPO --> API[("API O Vigia<br/>PostgreSQL")]
     REPO --> ML["ML Kit<br/>no aparelho"]
     REPO --> DISK[("JSON atômico<br/>no aparelho")]
@@ -202,7 +205,7 @@ app/src/main/
 │   ├── AppContainer           Injeção de dependências manual
 │   ├── engine/                Motor bayesiano — Java puro, sem Android
 │   ├── game/                  GameViewModel, estado de UI, eventos e humor do Vigia
-│   ├── data/                  Repositório (Comic Vine + cache), mapeamento, perguntas
+│   ├── data/                  Fichas dos personagens (API + cache), mapeamento, perguntas
 │   ├── learning/              Aprendizado persistente entre partidas
 │   ├── auth/                  Contas locais (PBKDF2), regras de senha e ViewModel de login
 │   ├── collection/            Heróis desbloqueados, por conta
@@ -355,28 +358,15 @@ keyPassword=...
 ```
 
 No CI, a keystore vem dos secrets `OVIGIA_KEYSTORE_BASE64`, `OVIGIA_STOREPASSWORD`,
-`OVIGIA_KEYALIAS` e `OVIGIA_KEYPASSWORD`; o endereço da API e a chave da Comic Vine,
-de `OVIGIA_API_URL` e `COMIC_VINE_API_KEY`. Sem eles, o build segue e o APK sai
-sem assinatura, sem amigos ou só com cache.
-
-### Chave da API em produção
-
-Tudo que vai no `BuildConfig` pode ser extraído do APK. Para uma publicação séria, coloque um
-proxy seu (Cloudflare Worker, Cloud Function etc.) na frente da Comic Vine que injete a chave
-no servidor, e configure:
-
-```properties
-COMIC_VINE_BASE_URL=https://seu-proxy.exemplo.com/api/
-COMIC_VINE_API_KEY=
-```
-
-Com a URL apontando para um proxy, o app funciona sem chave embutida.
+`OVIGIA_KEYALIAS` e `OVIGIA_KEYPASSWORD`; o endereço da API, de `OVIGIA_API_URL`. Sem
+eles, o build segue e o APK sai sem assinatura ou só com cache.
 
 ## Licença e créditos
 
 Código sob a [licença MIT](LICENSE).
 
-Dados e imagens dos personagens vêm da [Comic Vine](https://comicvine.gamespot.com/api/).
+Dados e imagens dos personagens vieram da [Comic Vine](https://comicvine.gamespot.com/api/)
+e hoje são servidos pela API do O Vigia.
 Este é um projeto de fãs, sem fins lucrativos e **sem qualquer afiliação com a Marvel, a
 Disney ou a Comic Vine**. Marvel, o Vigia (Uatu) e os demais personagens são marcas
 registradas de seus respectivos donos.

@@ -10,7 +10,7 @@ import android.os.Looper;
 import android.util.Log;
 
 import com.ovigia.app.api.ApiClient;
-import com.ovigia.app.api.ComicVineService;
+import com.ovigia.app.api.CharacterService;
 import com.ovigia.app.auth.AccountStore;
 import com.ovigia.app.cloud.ApiHttp;
 import com.ovigia.app.cloud.ApiPlayerBackend;
@@ -18,8 +18,8 @@ import com.ovigia.app.cloud.PrefsSessionStore;
 import com.ovigia.app.collection.CollectionStore;
 import com.ovigia.app.collection.HeroPortraits;
 import com.ovigia.app.data.CharacterRepository;
-import com.ovigia.app.data.ComicVineCharacterRepository;
-import com.ovigia.app.data.ComicVineHeroDetailRepository;
+import com.ovigia.app.data.ApiCharacterRepository;
+import com.ovigia.app.data.ApiHeroDetailRepository;
 import com.ovigia.app.data.HeroDetailRepository;
 import com.ovigia.app.data.QuestionTexts;
 import com.ovigia.app.data.roster.RosterCatalog;
@@ -142,10 +142,12 @@ public final class AppContainer {
         accountStore.addSessionListener(collectionStore::invalidate);
         accountStore.addSessionListener(achievementsStore::invalidate);
 
-        ComicVineService comicVine = ApiClient.create();
-        characterRepository = new ComicVineCharacterRepository(
-                comicVine,
-                ApiClient.apiKey(),
+        // As fichas (que vinham da Comic Vine) agora moram na API. Os caches das versões que
+        // buscavam na Comic Vine são descartados: apontavam para as imagens de lá.
+        ioExecutor.execute(() -> forgetComicVineCaches(app));
+        CharacterService characters = ApiClient.create();
+        characterRepository = new ApiCharacterRepository(
+                characters,
                 ApiClient.isConfigured(),
                 // O mesmo roster.json das conquistas, lido uma vez só.
                 () -> {
@@ -156,13 +158,13 @@ public final class AppContainer {
                 () -> QuestionTexts.load(AppLocales.resources(app)),
                 learningStore,
                 accountStore::currentAccountId,
-                () -> new File(app.getFilesDir(), "characters_cache.json"),
+                () -> new File(app.getFilesDir(), "characters_cache_v2.json"),
                 ioExecutor,
                 mainExecutor);
 
-        Supplier<File> heroDetailsDirectory = () -> new File(app.getFilesDir(), "hero_details");
-        heroDetailRepository = new ComicVineHeroDetailRepository(
-                ComicVineHeroDetailRepository.remote(comicVine, ApiClient.apiKey()),
+        Supplier<File> heroDetailsDirectory = () -> new File(app.getFilesDir(), "hero_details_v2");
+        heroDetailRepository = new ApiHeroDetailRepository(
+                ApiHeroDetailRepository.remote(characters),
                 ApiClient.isConfigured(),
                 heroDetailsDirectory,
                 ioExecutor,
@@ -205,7 +207,7 @@ public final class AppContainer {
         // atualizou o app com meia coleção pronta veria uma enxurrada de cartões.
         achievements.sync();
         // Aquece o elenco durante a abertura: sem cache em disco (instalação nova, ou vencido),
-        // essa é a chamada lenta à Comic Vine — feita agora, some no tempo da splash em vez de
+        // essa é a chamada lenta às fichas da API — feita agora, some no tempo da splash em vez de
         // atrasar a primeira pergunta. Com cache, é só uma leitura de disco a mais, barata. O
         // resultado fica em memória no repositório; a tela de perguntas que carregar depois pega
         // o mesmo elenco na hora.
@@ -243,6 +245,20 @@ public final class AppContainer {
             }
         }
         return rosterCatalog;
+    }
+
+    /** Apaga o elenco e as fichas que as versões anteriores baixavam da Comic Vine. */
+    private static void forgetComicVineCaches(Context app) {
+        File dir = app.getFilesDir();
+        deleteQuietly(new File(dir, "characters_cache.json"));
+        File details = new File(dir, "hero_details");
+        File[] files = details.listFiles();
+        if (files != null) for (File f : files) deleteQuietly(f);
+        deleteQuietly(details);
+    }
+
+    private static void deleteQuietly(File file) {
+        if (file.exists() && !file.delete()) Log.w(TAG, "Não foi possível apagar " + file);
     }
 
     /** O modelo do aparelho, para o jogador reconhecer a sessão. */

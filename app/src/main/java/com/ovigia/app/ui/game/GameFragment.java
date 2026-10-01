@@ -81,7 +81,7 @@ public abstract class GameFragment extends Fragment {
         return isAdded() && current != null && current.getId() == destinationId;
     }
 
-    /** Mensagem para uma falha ao falar com a Comic Vine (também usada pela ficha do herói). */
+    /** Mensagem para uma falha ao buscar as fichas dos personagens (também usada pela ficha do herói). */
     @StringRes
     public static int messageFor(LoadError error) {
         if (error == null) return R.string.error_server;

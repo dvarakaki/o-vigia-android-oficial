@@ -12,46 +12,23 @@ import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
 /**
- * Configuração do cliente HTTP da Comic Vine.
- *
- * A URL base e a chave vêm do {@code local.properties} (ver README). Para
- * publicar o app sem embutir a chave no APK, aponte {@code COMIC_VINE_BASE_URL}
- * para um proxy seu que injete a chave no servidor e deixe
- * {@code COMIC_VINE_API_KEY} vazia.
+ * Cliente das fichas dos personagens, na API do O Vigia ({@code OVIGIA_API_URL}).
+ * As fichas são públicas: não precisa de login nem de chave.
  */
 public final class ApiClient {
 
-    private static final String TAG = "ComicVineHttp";
-    public static final String DEFAULT_BASE_URL = "https://comicvine.gamespot.com/api/";
-    public static final String FORMAT = "json";
+    private static final String TAG = "CharacterHttp";
     private static final String USER_AGENT = "OVigiaApp/" + BuildConfig.VERSION_NAME + " (Android)";
-
-    /**
-     * Só os campos usados pelo motor — payload pequeno, resposta rápida.
-     * count_of_issue_appearances alimenta o prior de popularidade do motor.
-     */
-    public static final String GAME_FIELDS = "id,name,gender,origin,image,count_of_issue_appearances";
-
-    /** Máximo de resultados por página que a própria Comic Vine permite. */
-    public static final int PAGE_SIZE = 100;
 
     private ApiClient() { }
 
-    /** Chave a enviar como {@code api_key}; {@code null} quando um proxy injeta a chave. */
-    public static String apiKey() {
-        String key = BuildConfig.COMIC_VINE_API_KEY;
-        return key == null || key.isEmpty() ? null : key;
-    }
-
-    /** Há como chegar à API: ou temos chave, ou a URL aponta para um proxy. */
+    /** Esta versão do app sabe o endereço da API. */
     public static boolean isConfigured() {
-        return apiKey() != null || !DEFAULT_BASE_URL.equals(BuildConfig.COMIC_VINE_BASE_URL);
+        return !BuildConfig.OVIGIA_API_URL.trim().isEmpty();
     }
 
-    public static ComicVineService create() {
-        // A chave vai na query string: o log (só em debug) mostra a URL sem ela.
-        HttpLoggingInterceptor log = new HttpLoggingInterceptor(message ->
-                Log.i(TAG, message.replaceAll("api_key=[^&\\s]+", "api_key=***")));
+    public static CharacterService create() {
+        HttpLoggingInterceptor log = new HttpLoggingInterceptor(message -> Log.i(TAG, message));
         log.setLevel(BuildConfig.DEBUG ? HttpLoggingInterceptor.Level.BASIC : HttpLoggingInterceptor.Level.NONE);
 
         OkHttpClient client = new OkHttpClient.Builder()
@@ -65,11 +42,14 @@ public final class ApiClient {
                 .readTimeout(30, TimeUnit.SECONDS)
                 .build();
 
+        // Sem endereço configurado o Retrofit não aceita a URL vazia: um endereço que nunca
+        // é chamado, porque isConfigured() já barra as buscas antes.
+        String base = isConfigured() ? BuildConfig.OVIGIA_API_URL.trim() : "http://localhost/";
         return new Retrofit.Builder()
-                .baseUrl(BuildConfig.COMIC_VINE_BASE_URL)
+                .baseUrl(base.endsWith("/") ? base : base + "/")
                 .client(client)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
-                .create(ComicVineService.class);
+                .create(CharacterService.class);
     }
 }

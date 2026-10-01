@@ -430,11 +430,11 @@
 
     <!-- Loading errors -->
     <string name="error_no_connection">No internet connection.</string>
-    <string name="error_rate_limited">Comic Vine is getting too many requests right now. Try again in a few minutes.</string>
-    <string name="error_not_configured">The Comic Vine key is missing or was rejected.</string>
+    <string name="error_rate_limited">The server is getting too many requests right now. Try again in a few minutes.</string>
+    <string name="error_not_configured">This version of the app has no server address configured.</string>
     <string name="error_server">Couldn\'t load the characters.</string>
     <string name="error_empty_roster">No valid characters were found.</string>
-    <string name="error_hero_not_found">Comic Vine has no profile for this hero.</string>
+    <string name="error_hero_not_found">We don\'t have this hero\'s profile yet.</string>
 
     <!-- Guess -->
     <string name="answer_intro">I think it\'s:</string>

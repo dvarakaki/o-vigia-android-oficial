@@ -25,8 +25,8 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Endereço da API (ms-o-vigia) embutido no APK. Sem ele o app compila e
-      # roda igual, só que sem conta, amigos e trocas.
+      # Endereço da API (ms-o-vigia) embutido no APK: fichas dos personagens, conta,
+      # amigos e trocas. Sem ele o app compila igual e os testes seguem (não usam rede).
       # Cadastre em Settings → Secrets and variables → Actions:
       #   OVIGIA_API_URL  (ex.: https://api.exemplo.com/)
       - name: Configura endereço da API
@@ -34,16 +34,6 @@ jobs:
           OVIGIA_API_URL: ${{ secrets.OVIGIA_API_URL }}
         if: env.OVIGIA_API_URL != ''
         run: echo "OVIGIA_API_URL=$OVIGIA_API_URL" >> local.properties
-
-      # Sem o secret cadastrado, o APK de release sai sem chave (só funciona com
-      # cache) e os testes seguem normalmente, pois não usam rede.
-      # Cadastre em Settings → Secrets and variables → Actions:
-      #   COMIC_VINE_API_KEY  (chave gratuita de https://comicvine.gamespot.com/api/)
-      - name: Configura chave da Comic Vine
-        env:
-          COMIC_VINE_API_KEY: ${{ secrets.COMIC_VINE_API_KEY }}
-        if: env.COMIC_VINE_API_KEY != ''
-        run: echo "COMIC_VINE_API_KEY=$COMIC_VINE_API_KEY" >> local.properties
 
       - name: Testes unitários
         run: ./gradlew testDebugUnitTest

@@ -16,15 +16,15 @@ public interface CharacterRepository {
     enum LoadError {
         /** Sem internet ou timeout. */
         NO_CONNECTION,
-        /** A Comic Vine limitou as requisições (HTTP 420/429 ou status 107). */
+        /** O servidor limitou as requisições (HTTP 420/429 ou status 107). */
         RATE_LIMITED,
-        /** Chave da API ausente ou recusada. */
+        /** Esta versão do app não tem o endereço da API. */
         NOT_CONFIGURED,
         /** Resposta inesperada do servidor. */
         SERVER_ERROR,
         /** A API respondeu, mas nenhum personagem utilizável veio. */
         EMPTY_ROSTER,
-        /** A Comic Vine não tem o personagem pedido (status 101, na ficha de um herói). */
+        /** A API não tem a ficha do personagem pedido (HTTP 404 ou status 101). */
         NOT_FOUND
     }
 

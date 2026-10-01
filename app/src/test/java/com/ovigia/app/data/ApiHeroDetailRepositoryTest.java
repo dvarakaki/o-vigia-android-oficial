@@ -23,7 +23,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /** Cache em disco e tratamento das respostas da Comic Vine, sem rede. */
-public class ComicVineHeroDetailRepositoryTest {
+public class ApiHeroDetailRepositoryTest {
 
     @Rule
     public TemporaryFolder tmp = new TemporaryFolder();
@@ -47,8 +47,8 @@ public class ComicVineHeroDetailRepositoryTest {
         return Response.success(body);
     }
 
-    private ComicVineHeroDetailRepository repo(ComicVineHeroDetailRepository.Remote remote) {
-        return new ComicVineHeroDetailRepository(id -> {
+    private ApiHeroDetailRepository repo(ApiHeroDetailRepository.Remote remote) {
+        return new ApiHeroDetailRepository(id -> {
             calls++;
             return remote.fetch(id);
         }, true, () -> dir, direct, direct);
@@ -60,7 +60,7 @@ public class ComicVineHeroDetailRepositoryTest {
         LoadError error;
     }
 
-    private static Result load(ComicVineHeroDetailRepository repo) {
+    private static Result load(ApiHeroDetailRepository repo) {
         Result r = new Result();
         repo.load(1488, false, new HeroDetailRepository.Callback() {
             @Override
@@ -79,7 +79,7 @@ public class ComicVineHeroDetailRepositoryTest {
 
     @Test
     public void firstLoad_fetchesAndCaches_secondLoadUsesDisk() {
-        ComicVineHeroDetailRepository repo = repo(id -> ok("Lizard"));
+        ApiHeroDetailRepository repo = repo(id -> ok("Lizard"));
         assertEquals("Lizard", load(repo).detail.name);
         assertTrue(new File(dir, "1488.json").exists());
 
@@ -118,13 +118,16 @@ public class ComicVineHeroDetailRepositoryTest {
 
         ComicVineResponse<CharacterDetail> notFound = new ComicVineResponse<>();
         notFound.statusCode = 101;
-        assertEquals("herói que a Comic Vine não tem", LoadError.NOT_FOUND,
+        assertEquals("herói sem ficha", LoadError.NOT_FOUND,
                 load(repo(id -> Response.success(notFound))).error);
+        assertEquals("404 da API", LoadError.NOT_FOUND, load(repo(id ->
+                Response.error(404, ResponseBody.create("{\"status_code\":101}", MediaType.get("application/json")))))
+                .error);
     }
 
     @Test
     public void notConfigured_doesNotCallTheApi() {
-        ComicVineHeroDetailRepository repo = new ComicVineHeroDetailRepository(id -> {
+        ApiHeroDetailRepository repo = new ApiHeroDetailRepository(id -> {
             calls++;
             return ok("x");
         }, false, () -> dir, direct, direct);

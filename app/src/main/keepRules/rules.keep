@@ -1,10 +1,10 @@
 # Regras do R8 para o O Vigia.
 # AGP combina todos os arquivos de src/main/keepRules e entrega ao R8.
 
-# Modelos lidos/escritos via Gson por reflexão (API da Comic Vine, caches em disco,
+# Modelos lidos/escritos via Gson por reflexão (fichas dos personagens, caches em disco,
 # roster.json e preferências). Sem isso o R8 renomeia os campos e o JSON deixa de
 # casar — e troca Map/List por HashMap/ArrayList, o que apaga a assinatura genérica
-# (KeepRulesTest guarda isto). Os dados da API do O Vigia, a cópia deles no aparelho e
+# (KeepRulesTest guarda isto). Os dados do jogador na API, a cópia deles no aparelho e
 # os arquivos das versões antigas são lidos como árvore JSON: nada disso precisa de regra.
 -keep class com.ovigia.app.model.** { <fields>; <init>(); }
 -keep class com.ovigia.app.data.roster.RosterCatalog$Document { <fields>; <init>(); }
@@ -22,9 +22,9 @@
 # Retrofit: tipos genéricos dos métodos da interface.
 -keep,allowobfuscation,allowshrinking interface retrofit2.Call
 -keep,allowobfuscation,allowshrinking class retrofit2.Response
--keep interface com.ovigia.app.api.ComicVineService { *; }
+-keep interface com.ovigia.app.api.CharacterService { *; }
 
-# jsoup (biografia da Comic Vine): o motor de regex alternativo é opcional e não vai no APK.
+# jsoup (biografia dos personagens): o motor de regex alternativo é opcional e não vai no APK.
 -dontwarn com.google.re2j.**
 -dontwarn org.jspecify.annotations.**
 

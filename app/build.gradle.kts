@@ -12,17 +12,10 @@ fun rootProperties(name: String): Properties = Properties().apply {
 
 // Configuração local de cada dev — local.properties não vai para o git.
 val localProps = rootProperties("local.properties")
-val comicVineApiKey: String = localProps.getProperty("COMIC_VINE_API_KEY", "")
-val comicVineBaseUrl: String = localProps.getProperty(
-    "COMIC_VINE_BASE_URL", "https://comicvine.gamespot.com/api/"
-)
-if (comicVineApiKey.isBlank() && comicVineBaseUrl.contains("comicvine.gamespot.com")) {
-    logger.warn("⚠️  COMIC_VINE_API_KEY não encontrada em local.properties — o jogo só funciona com cache. Veja o README.")
-}
-
-// Conta, dados do jogador e amigos moram na API do O Vigia (repositório ms-o-vigia).
+// Conta, dados do jogador, amigos e as fichas dos personagens moram na API do O Vigia
+// (repositório ms-o-vigia).
 // OVIGIA_API_URL vem do local.properties ou, no CI, da variável de ambiente. Sem ela o app
-// compila igual e as telas de conta e amigos avisam que não estão disponíveis.
+// compila igual, mas sem jogo, conta nem amigos (as telas avisam).
 // OVIGIA_API_URL_DEBUG (opcional) aponta o build de debug para outro servidor — por exemplo
 // http://10.0.2.2:8080/ para a API rodando no computador, vista do emulador.
 val ovigiaApiUrl: String = localProps.getProperty("OVIGIA_API_URL") ?: System.getenv("OVIGIA_API_URL") ?: ""
@@ -50,8 +43,6 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "COMIC_VINE_API_KEY", "\"$comicVineApiKey\"")
-        buildConfigField("String", "COMIC_VINE_BASE_URL", "\"$comicVineBaseUrl\"")
         buildConfigField("String", "OVIGIA_API_URL", "\"$ovigiaApiUrl\"")
     }
 
@@ -129,7 +120,7 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.savedstate)
     implementation(libs.lifecycle.livedata)
 
-    // Rede (Comic Vine e a API do O Vigia)
+    // Rede (API do O Vigia)
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp.logging)

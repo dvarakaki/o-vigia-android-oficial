@@ -2,7 +2,7 @@ package com.ovigia.app.data;
 
 import com.ovigia.app.cloud.FakeCloud;
 import com.google.gson.JsonSyntaxException;
-import com.ovigia.app.api.ComicVineService;
+import com.ovigia.app.api.CharacterService;
 import com.ovigia.app.data.CharacterRepository.LoadError;
 import com.ovigia.app.data.roster.RosterCatalog;
 import com.ovigia.app.engine.CharacterProfile;
@@ -33,8 +33,8 @@ import retrofit2.Response;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
-/** Carga do elenco quando a Comic Vine responde algo que o Gson não entende. */
-public class ComicVineCharacterRepositoryTest {
+/** Carga do elenco quando a API responde algo que o Gson não entende. */
+public class ApiCharacterRepositoryTest {
 
     @Rule
     public TemporaryFolder tmp = new TemporaryFolder();
@@ -49,22 +49,25 @@ public class ComicVineCharacterRepositoryTest {
         learning = new LearningStore(new FakeCloud());
     }
 
-    /** Comic Vine cuja resposta de lista estoura no conversor (JSON inesperado). */
-    private static final ComicVineService UNREADABLE = new ComicVineService() {
+    /** API cuja resposta de lista estoura no conversor (JSON inesperado). */
+    private static final CharacterService UNREADABLE = new CharacterService() {
         @Override
-        public Call<ComicVineResponse<List<Character>>> listCharacters(String apiKey, String format, int limit,
-                                                                       int offset, String filter, String fieldList) {
+        public Call<ComicVineResponse<List<Character>>> summaries(String ids) {
             return new ThrowingCall<>(new JsonSyntaxException("results: esperado lista"));
         }
 
         @Override
-        public Call<ComicVineResponse<CharacterDetail>> characterDetail(int id, String apiKey, String format) {
+        public Call<ComicVineResponse<CharacterDetail>> detail(int id) {
             throw new UnsupportedOperationException();
         }
     };
 
-    private ComicVineCharacterRepository repository() {
-        return new ComicVineCharacterRepository(UNREADABLE, "chave", true,
+    private ApiCharacterRepository repository() {
+        return repository(UNREADABLE);
+    }
+
+    private ApiCharacterRepository repository(CharacterService service) {
+        return new ApiCharacterRepository(service, true,
                 () -> RosterCatalog.parse(new StringReader("{\"characters\":[{\"id\":1455,\"name\":\"Iron Man\","
                         + "\"teams\":[\"avengers\"],\"powers\":[],\"villain\":0.08,\"mainstream\":true}]}")),
                 () -> Collections.singletonMap(QuestionKeys.IS_VILLAIN, "É vilão?"),
@@ -76,7 +79,7 @@ public class ComicVineCharacterRepositoryTest {
         LoadError error;
     }
 
-    private static Result load(ComicVineCharacterRepository repository) {
+    private static Result load(ApiCharacterRepository repository) {
         Result result = new Result();
         repository.loadCharacters(new CharacterRepository.Callback() {
             @Override
@@ -116,8 +119,53 @@ public class ComicVineCharacterRepositoryTest {
         assertEquals("Iron Man", result.profiles.get(0).name);
     }
 
+    @Test
+    public void wholeRosterComesInOneCall_withTheRosterIds() {
+        String[] asked = new String[1];
+        Character ironMan = new Character();
+        ironMan.id = 1455;
+        ironMan.name = "Iron Man";
+        ironMan.image = new ImageData();
+        ironMan.image.superUrl = "https://api.exemplo.com/v1/characters/media/abc";
+        ComicVineResponse<List<Character>> body = new ComicVineResponse<>();
+        body.statusCode = 1;
+        body.results = Collections.singletonList(ironMan);
+        CharacterService api = new CharacterService() {
+            @Override
+            public Call<ComicVineResponse<List<Character>>> summaries(String ids) {
+                asked[0] = ids;
+                return new FixedCall<>(Response.success(body));
+            }
+
+            @Override
+            public Call<ComicVineResponse<CharacterDetail>> detail(int id) {
+                throw new UnsupportedOperationException();
+            }
+        };
+
+        Result result = load(repository(api));
+        assertNull(result.error);
+        assertEquals("1455", asked[0]);
+        assertEquals("https://api.exemplo.com/v1/characters/media/abc", result.profiles.get(0).imageUrl);
+    }
+
+    /** Chamada síncrona que devolve sempre a mesma resposta. */
+    private static final class FixedCall<T> extends ThrowingCall<T> {
+        private final Response<T> response;
+
+        FixedCall(Response<T> response) {
+            super(null);
+            this.response = response;
+        }
+
+        @Override
+        public Response<T> execute() {
+            return response;
+        }
+    }
+
     /** Chamada síncrona que estoura com uma exceção não verificada, como o conversor do Gson faz. */
-    private static final class ThrowingCall<T> implements Call<T> {
+    private static class ThrowingCall<T> implements Call<T> {
         private final RuntimeException failure;
 
         ThrowingCall(RuntimeException failure) {

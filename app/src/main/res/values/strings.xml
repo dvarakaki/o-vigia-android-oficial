@@ -460,11 +460,11 @@
 
     <!-- Erros de carregamento -->
     <string name="error_no_connection">Sem conexão com a internet.</string>
-    <string name="error_rate_limited">A Comic Vine está recebendo requisições demais no momento. Tente de novo em alguns minutos.</string>
-    <string name="error_not_configured">A chave da Comic Vine não está configurada ou foi recusada.</string>
+    <string name="error_rate_limited">O servidor está recebendo requisições demais no momento. Tente de novo em alguns minutos.</string>
+    <string name="error_not_configured">Esta versão do app não tem o endereço do servidor configurado.</string>
     <string name="error_server">Não foi possível carregar os personagens.</string>
     <string name="error_empty_roster">Nenhum personagem válido foi encontrado.</string>
-    <string name="error_hero_not_found">A Comic Vine não tem a ficha deste herói.</string>
+    <string name="error_hero_not_found">Ainda não temos a ficha deste herói.</string>
 
     <!-- Chute -->
     <string name="answer_intro">Eu acho que:</string>

@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
- * Guarda o elenco (bruto, como a Comic Vine devolve) em um arquivo local, pra
+ * Guarda o elenco (bruto, como a API devolve) em um arquivo local, pra
  * não depender de rede — nem do limite de requisições da API — toda vez que o
  * app abre. Métodos bloqueantes: chamar só a partir do executor de I/O.
  */
@@ -50,7 +50,7 @@ final class CharacterDiskCache {
     /** Devolve o elenco salvo só se ainda estiver dentro da validade. */
     List<Character> readFresh() {
         File file = fileSupplier.get();
-        if (!file.exists() || ComicVineResponses.isExpired(file, TTL_MILLIS)) return null;
+        if (!file.exists() || CharacterResponses.isExpired(file, TTL_MILLIS)) return null;
         return readStale();
     }
 

@@ -2,9 +2,8 @@ package com.ovigia.app.data;
 
 import android.util.Log;
 
-import com.ovigia.app.api.ApiClient;
-import com.ovigia.app.api.ComicVineService;
-import com.ovigia.app.data.ComicVineResponses.Failure;
+import com.ovigia.app.api.CharacterService;
+import com.ovigia.app.data.CharacterResponses.Failure;
 import com.ovigia.app.data.roster.RosterCatalog;
 import com.ovigia.app.engine.CharacterProfile;
 import com.ovigia.app.engine.GameEngine;
@@ -25,13 +24,14 @@ import java.util.function.Supplier;
 import retrofit2.Response;
 
 /**
- * Implementação real de {@link CharacterRepository}: busca o elenco na Comic
- * Vine e converte para o formato do motor do jogo.
+ * Implementação real de {@link CharacterRepository}: busca o elenco na API do
+ * O Vigia (as fichas que vieram da Comic Vine, guardadas no nosso banco) e
+ * converte para o formato do motor do jogo.
  *
  * Camadas de cache:
  * 1. Memória — perfis "puros" (sem aprendizado), enquanto o processo viver.
  * 2. Disco ({@link CharacterDiskCache}) — sobrevive ao app fechar; com ele o
- *    jogo funciona offline (e imune ao limite de requisições) por 7 dias, e um
+ *    jogo funciona offline por 7 dias, e um
  *    cache vencido ainda serve de último recurso se a rede falhar.
  *
  * Todo I/O (assets, disco, rede) roda no {@code ioExecutor}; o callback volta
@@ -40,7 +40,7 @@ import retrofit2.Response;
  * Os textos das perguntas são lidos de novo a cada carga: se o jogador trocar o
  * idioma, a próxima partida já vem traduzida sem refazer os perfis.
  */
-public final class ComicVineCharacterRepository implements CharacterRepository {
+public final class ApiCharacterRepository implements CharacterRepository {
 
     private static final String TAG = "CharacterRepository";
 
@@ -49,8 +49,7 @@ public final class ComicVineCharacterRepository implements CharacterRepository {
         RosterCatalog load() throws IOException;
     }
 
-    private final ComicVineService service;
-    private final String apiKey;
+    private final CharacterService service;
     private final boolean apiConfigured;
     private final RosterSource rosterSource;
     private final Supplier<Map<String, String>> questionTexts;
@@ -69,13 +68,12 @@ public final class ComicVineCharacterRepository implements CharacterRepository {
      * @param currentAccountId id da conta ativa (ou {@code null} sem sessão), consultado a cada
      *                         carga para o aprendizado misturado ser sempre o da conta logada.
      */
-    public ComicVineCharacterRepository(ComicVineService service, String apiKey, boolean apiConfigured,
+    public ApiCharacterRepository(CharacterService service, boolean apiConfigured,
                                         RosterSource rosterSource, Supplier<Map<String, String>> questionTexts,
                                         LearningStore learningStore, Supplier<String> currentAccountId,
                                         Supplier<File> cacheFile,
                                         Executor ioExecutor, Executor mainExecutor) {
         this.service = service;
-        this.apiKey = apiKey;
         this.apiConfigured = apiConfigured;
         this.rosterSource = rosterSource;
         this.questionTexts = questionTexts;
@@ -147,34 +145,21 @@ public final class ComicVineCharacterRepository implements CharacterRepository {
         cachedRawProfiles = Collections.unmodifiableList(profiles);
     }
 
-    /**
-     * Busca todo o elenco, paginando: a Comic Vine devolve no máximo 100
-     * resultados por página. Chamada síncrona — só no executor de I/O.
-     */
+    /** Busca o elenco inteiro numa chamada. Síncrona — só no executor de I/O. */
     private List<Character> fetchAll(RosterCatalog roster) throws Failure {
-        Map<Integer, Character> byId = new LinkedHashMap<>();
-        String filter = "id:" + roster.idFilter();
-        int offset = 0;
-        while (true) {
-            Response<ComicVineResponse<List<Character>>> response;
-            try {
-                response = service.listCharacters(apiKey, ApiClient.FORMAT, ApiClient.PAGE_SIZE,
-                        offset, filter, ApiClient.GAME_FIELDS).execute();
-            } catch (IOException e) {
-                throw new Failure(LoadError.NO_CONNECTION);
-            } catch (RuntimeException e) {
-                // JSON inesperado, por exemplo. Solta no executor de I/O, derrubaria o app.
-                Log.w(TAG, "Resposta ilegível", e);
-                throw new Failure(LoadError.SERVER_ERROR);
-            }
-
-            ComicVineResponse<List<Character>> body = ComicVineResponses.body(response);
-            List<Character> results = ComicVineResponses.results(body);
-
-            for (Character c : results) byId.put(c.id, c);
-            offset += ApiClient.PAGE_SIZE;
-            if (results.isEmpty() || offset >= body.numberOfTotalResults) break;
+        Response<ComicVineResponse<List<Character>>> response;
+        try {
+            response = service.summaries(roster.idFilter().replace('|', ',')).execute();
+        } catch (IOException e) {
+            throw new Failure(LoadError.NO_CONNECTION);
+        } catch (RuntimeException e) {
+            // JSON inesperado, por exemplo. Solto no executor de I/O, derrubaria o app.
+            Log.w(TAG, "Resposta ilegível", e);
+            throw new Failure(LoadError.SERVER_ERROR);
         }
+        List<Character> results = CharacterResponses.results(CharacterResponses.body(response));
+        Map<Integer, Character> byId = new LinkedHashMap<>();
+        for (Character c : results) byId.put(c.id, c);
         if (byId.isEmpty()) throw new Failure(LoadError.EMPTY_ROSTER);
         return new ArrayList<>(byId.values());
     }

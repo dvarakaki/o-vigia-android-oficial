@@ -8,13 +8,13 @@ import java.io.File;
 import retrofit2.Response;
 
 /**
- * O que as duas buscas na Comic Vine (elenco e ficha) têm em comum: traduzir o
- * HTTP e o status do corpo da resposta num {@link LoadError}, e a validade dos
- * caches em disco.
+ * O que as duas buscas de fichas (elenco e ficha) têm em comum: traduzir o HTTP e
+ * o status do corpo da resposta num {@link LoadError}, e a validade dos caches em
+ * disco. O corpo segue o formato da Comic Vine, de onde as fichas vieram.
  */
-final class ComicVineResponses {
+final class CharacterResponses {
 
-    /** Status do corpo de resposta da Comic Vine (independente do HTTP). */
+    /** Status do corpo de resposta, no padrão da Comic Vine (independente do HTTP). */
     static final int STATUS_OK = 1;
     static final int STATUS_INVALID_KEY = 100;
     static final int STATUS_NOT_FOUND = 101;
@@ -57,5 +57,5 @@ final class ComicVineResponses {
         }
     }
 
-    private ComicVineResponses() { }
+    private CharacterResponses() { }
 }
