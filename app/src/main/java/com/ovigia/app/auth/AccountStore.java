@@ -229,13 +229,19 @@ public final class AccountStore {
         return save(session, kind == ImageKind.AVATAR ? data.withAvatar(image) : data.withBanner(image));
     }
 
-    /** Guarda o @usuario reservado para os amigos (ou {@code null} para esquecê-lo). */
+    /**
+     * O @usuario que o servidor acabou de reservar para os amigos (ou {@code null} para
+     * esquecê-lo). Quem grava é o {@code SocialBackend}; aqui a conta em memória só passa a
+     * mostrá-lo, sem outra ida ao servidor.
+     */
     public synchronized Result setUsername(String accountId, @Nullable String username) {
         PlayerBackend.Session session = backend.currentSession();
         if (session == null || !session.uid.equals(accountId)) return Result.failure(Error.NOT_SIGNED_IN);
         PlayerBackend.Account data = load(session, null);
         if (data == null) return Result.failure(Error.OFFLINE);
-        return save(session, data.withUsername(username));
+        cachedUid = session.uid;
+        cached = data.withUsername(username);
+        return Result.success(toAccount(session, cached));
     }
 
     /**
