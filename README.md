@@ -109,62 +109,49 @@ flowchart LR
 O build de debug usa o id `com.ovigia.app.debug` e pode ficar instalado ao lado do de release.
 Sem a chave, o jogo funciona apenas com o que já estiver em cache.
 
-## Amigos online
+## Conta e amigos online
 
-A aba de amigos — pedidos de amizade, perfis, conquistas e troca de heróis — usa
-**Firebase Auth + Cloud Firestore**. Sem configuração o app compila e roda normalmente, e a
-aba avisa que os amigos não estão disponíveis. Tudo cabe no plano gratuito (Spark): foto e
-banner vão reduzidos dentro dos documentos, sem Cloud Storage nem Cloud Functions.
+A conta, a coleção, o aprendizado do Vigia e a aba de amigos — pedidos de amizade, perfis,
+conquistas e troca de heróis — ficam na **API do O Vigia**
+([ms-o-vigia](https://github.com/dvarakaki/ms-o-vigia), Spring Boot + PostgreSQL). Sem o
+endereço da API o app compila e roda normalmente, só que sem conta online.
 
 <details>
-<summary><b>Configurar o Firebase</b></summary>
+<summary><b>Apontar o app para a API</b></summary>
 
 <br/>
 
-1. Crie um projeto no [console do Firebase](https://console.firebase.google.com/).
-2. Adicione um app Android com o pacote `com.ovigia.app` e outro com `com.ovigia.app.debug`
-   (o mesmo `google-services.json` serve para os dois).
-3. Em **Authentication → Método de login**, ative **E-mail/senha**.
-4. Em **Firestore Database**, crie o banco e publique as regras de [`firestore.rules`](firestore.rules)
-   (cole na aba **Regras** ou rode `firebase deploy --only firestore:rules`).
-5. Baixe o `google-services.json` para `app/` (fora do git) e rode o app de novo.
-
-Para desenvolver sem projeto real, use o Firebase Local Emulator Suite:
-
-```bash
-firebase emulators:start --only auth,firestore --project demo-ovigia
-```
-
-e aponte o build de debug para ele no `local.properties` (`10.0.2.2` é o computador visto
-pelo emulador Android):
+No `local.properties` (fora do git) ou como variável de ambiente:
 
 ```properties
-FIREBASE_EMULATOR_HOST=10.0.2.2
+OVIGIA_API_URL=https://api.exemplo.com/
+# Opcional: só o build de debug, ex. a API rodando no computador (10.0.2.2 é o
+# computador visto pelo emulador Android; HTTP liberado só para ele no debug).
+OVIGIA_API_URL_DEBUG=http://10.0.2.2:8080/
 ```
+
+Para subir a API localmente, siga o README do ms-o-vigia (`docker compose up`).
 
 </details>
 
-> [!IMPORTANT]
-> Sempre que o `firestore.rules` mudar numa versão nova (a 1.3.0 acrescentou a coleção
-> `trades`), publique as regras de novo. Sem isso, o recurso novo falha no servidor — o
-> resto da aba continua funcionando.
-
 ### Como funciona
 
-- **A conta online usa o mesmo e-mail e senha da local.** Entrar ou criar a conta já abre a
-  sessão online, então a aba de amigos não pede a senha de novo — só falta escolher um
-  `@usuario` único. Sem internet no login, a senha fica cifrada com uma chave do Android
-  Keystore, fora do backup (`social/KeystoreCredentialVault`), e o app termina a conexão
-  sozinho depois; conectou, o arquivo é apagado e a sessão do Firebase assume.
+- **Login com tokens.** Entrar devolve um token de acesso curto e um refresh token, guardados
+  fora do backup (`cloud/PrefsSessionStore`). O token é renovado sozinho antes de vencer; se o
+  servidor recusar o refresh (senha trocada, conta excluída), a sessão acaba.
+- **Joga sem internet.** A última cópia de cada conta fica no aparelho (`cloud/LocalMirror`) e
+  as gravações vão para uma fila em disco (`cloud/PendingWrites`) que sobe na ordem quando a
+  rede volta. Reenviar uma partida não conta duas vezes: o servidor reconhece pela hora.
+- **O servidor decide o desbloqueio.** A partida vencida põe o herói na coleção no servidor, que
+  diz se ele é novo — a comemoração no app segue esse veredito. Partida jogada sem login entra
+  na conta ao entrar pela tela do resultado.
 - **Só amigos veem o perfil completo.** Nome, `@usuario` e foto aparecem na busca; bio,
   banner, números, heróis e conquistas só para amigos. O e-mail nunca é publicado.
-- **Amizade só com pedido aceito.** As regras do Firestore garantem que só quem recebeu o
-  pedido cria a amizade, e qualquer um dos dois pode desfazê-la.
-- **A conta acompanha o jogador.** Entrar num aparelho novo recria a conta local com o que o
-  servidor guardava: nome, bio, `@usuario`, foto, banner, heróis e números das partidas. O
-  aprendizado do motor e o histórico partida a partida ficam no aparelho onde foram jogados.
-- **Excluir a conta apaga também a online.** Sem internet, a exclusão espera a conexão para
-  não deixar dados para trás.
+- **Atualizar o app não perde nada.** Na primeira vez que uma conta entra nesta versão, o que as
+  versões antigas guardavam (conta local, heróis, aprendizado, histórico e fotos) é importado
+  para a API (`legacy/LegacyMigration`).
+- **O elenco vem da API.** `GET /v1/characters` (com ETag) traz personagens novos sem atualizar
+  o app; o `assets/roster.json` vale enquanto a API nunca respondeu.
 
 ### Troca de heróis
 
@@ -179,21 +166,20 @@ com o seu.
 sequenceDiagram
     autonumber
     participant D as Davi (pede)
-    participant F as Firestore · trades/
+    participant F as API · trocas
     participant A as Ana (recebe)
     D->>F: propõe: quero Homem-Aranha, ofereço Homem de Ferro
     F-->>A: aparece em "Propostas de troca"
     A->>F: aceita escolhendo o Thor
-    Note over A: Thor entra na coleção na hora
+    Note over F: Thor vai para Ana e Homem-Aranha para Davi
     D->>F: abre a aba de amigos
     F-->>D: proposta aceita
-    Note over D: Homem-Aranha entra na coleção
-    D->>F: apaga a proposta
+    D->>F: dispensa o aviso
 ```
 
-As regras garantem que só amigos trocam e que só quem recebeu aceita, uma vez. A posse dos
-heróis não é conferida no servidor, porque a coleção vive no aparelho. Não há notificação
-push (exigiria Cloud Functions): quem pediu recebe o herói ao abrir a aba de amigos.
+O servidor confere que só amigos trocam, que cada um tem o herói que oferece e que só quem
+recebeu aceita, uma vez. Não há notificação push: quem pediu vê a troca aceita ao abrir a aba
+de amigos.
 
 ## Arquitetura
 
@@ -203,7 +189,7 @@ flowchart LR
     VM --> ENG["engine/<br/>motor bayesiano"]
     VM --> REPO["data/ · social/<br/>translation/"]
     REPO --> CV[("Comic Vine API")]
-    REPO --> FB[("Firebase Auth<br/>Firestore")]
+    REPO --> API[("API O Vigia<br/>PostgreSQL")]
     REPO --> ML["ML Kit<br/>no aparelho"]
     REPO --> DISK[("JSON atômico<br/>no aparelho")]
 ```
@@ -222,7 +208,9 @@ app/src/main/
 │   ├── collection/            Heróis desbloqueados, por conta
 │   ├── catalog/               Catálogo e ficha do herói (regra de desbloqueio, ViewModels)
 │   ├── profile/               Perfil e edição do perfil (foto, banner, dados, senha)
-│   ├── social/                Firebase, @usuario, pedidos, conquistas, trocas e ViewModels
+│   ├── cloud/                 Cliente da API: sessão, tokens, fila offline e cópia local
+│   ├── legacy/                Importação dos dados das versões antigas
+│   ├── social/                @usuario, pedidos, conquistas, trocas e ViewModels
 │   ├── settings/              Idioma, preferências da partida, vibração e cache
 │   ├── translation/           Tradução dos textos da Comic Vine
 │   └── ui/                    Fragments de cada tela
@@ -238,9 +226,10 @@ app/src/main/
   restaurar, o log é reaplicado no motor e a mesma pergunta volta à tela.
 - **I/O fora da main thread.** Disco e rede rodam num executor de I/O; as gravações são
   atômicas (arquivo temporário + rename). O StrictMode fica ligado no debug.
-- **Rede dos amigos em thread própria.** O Firebase roda num executor separado, para uma
-  conexão lenta não segurar as gravações em disco. O `SocialBackend` é uma interface: os
-  testes usam um servidor em memória com as mesmas garantias do `firestore.rules`.
+- **Rede em thread própria.** A fila de gravações sobe num executor separado, para uma
+  conexão lenta não segurar as gravações em disco. `PlayerBackend` e `SocialBackend` são
+  interfaces: os testes usam um servidor em memória (`FakeCloud`) e o cliente HTTP é testado
+  contra o `MockWebServer`.
 - **Conquista comemorada uma vez só.** As conquistas são recalculadas do zero a cada consulta;
   quem separa "acabou de cair" de "já era sua" é o `social/AchievementsStore`. A primeira
   consulta de cada conta é um marco zero silencioso, para não despejar cartões em quem
@@ -255,7 +244,7 @@ app/src/main/
 | Arquitetura | MVVM · ViewModel + SavedState · LiveData · DI manual |
 | Rede | Retrofit · OkHttp · Gson · jsoup |
 | Imagens | Glide |
-| Online | Firebase Auth · Cloud Firestore (plano Spark) |
+| Online | API própria (ms-o-vigia) · JWT + refresh token · fila offline |
 | Tradução | ML Kit Translate (no aparelho) + glossário curado |
 | Build | Gradle (Kotlin DSL) · version catalog · R8 · GitHub Actions |
 
@@ -366,8 +355,8 @@ keyPassword=...
 ```
 
 No CI, a keystore vem dos secrets `OVIGIA_KEYSTORE_BASE64`, `OVIGIA_STOREPASSWORD`,
-`OVIGIA_KEYALIAS` e `OVIGIA_KEYPASSWORD`; o `google-services.json` e a chave da Comic Vine,
-de `GOOGLE_SERVICES_JSON_BASE64` e `COMIC_VINE_API_KEY`. Sem eles, o build segue e o APK sai
+`OVIGIA_KEYALIAS` e `OVIGIA_KEYPASSWORD`; o endereço da API e a chave da Comic Vine,
+de `OVIGIA_API_URL` e `COMIC_VINE_API_KEY`. Sem eles, o build segue e o APK sai
 sem assinatura, sem amigos ou só com cache.
 
 ### Chave da API em produção
