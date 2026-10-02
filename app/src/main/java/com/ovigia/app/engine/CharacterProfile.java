@@ -1,5 +1,7 @@
 package com.ovigia.app.engine;
 
+import com.ovigia.app.data.roster.Rarity;
+
 import java.util.Map;
 
 /**
@@ -28,11 +30,19 @@ public class CharacterProfile {
      */
     public final boolean isMainstream;
 
+    /** Quanto menos conhecido, mais raro; não pesa no motor, só no desbloqueio e nas telas. */
+    public final Rarity rarity;
+
     /** Probabilidade de ser o personagem escolhido pelo jogador; atualizada a cada resposta. */
     public double probability;
 
     public CharacterProfile(int id, String name, String imageUrl, String thumbnailUrl,
                             Map<String, Double> attributes, int issueCount, boolean isMainstream) {
+        this(id, name, imageUrl, thumbnailUrl, attributes, issueCount, isMainstream, Rarity.COMMON);
+    }
+
+    public CharacterProfile(int id, String name, String imageUrl, String thumbnailUrl,
+                            Map<String, Double> attributes, int issueCount, boolean isMainstream, Rarity rarity) {
         this.id = id;
         this.name = name;
         this.imageUrl = imageUrl;
@@ -40,10 +50,12 @@ public class CharacterProfile {
         this.attributes = attributes;
         this.issueCount = issueCount;
         this.isMainstream = isMainstream;
+        this.rarity = rarity;
     }
 
     /** Cópia com outro conjunto de atributos (probabilidade não é copiada). */
     public CharacterProfile withAttributes(Map<String, Double> newAttributes) {
-        return new CharacterProfile(id, name, imageUrl, thumbnailUrl, newAttributes, issueCount, isMainstream);
+        return new CharacterProfile(id, name, imageUrl, thumbnailUrl, newAttributes, issueCount, isMainstream,
+                rarity);
     }
 }

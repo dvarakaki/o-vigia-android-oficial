@@ -20,6 +20,9 @@ val localProps = rootProperties("local.properties")
 // http://10.0.2.2:8080/ para a API rodando no computador, vista do emulador.
 val ovigiaApiUrl: String = localProps.getProperty("OVIGIA_API_URL") ?: System.getenv("OVIGIA_API_URL") ?: ""
 val ovigiaApiUrlDebug: String = localProps.getProperty("OVIGIA_API_URL_DEBUG", ovigiaApiUrl)
+// Loja de mentira para o Vigia do Infinito (só no debug): FAKE_BILLING=true no local.properties
+// deixa testar a compra sem o app estar no Google Play. O release sempre usa o Google Play.
+val fakeBilling: Boolean = localProps.getProperty("FAKE_BILLING", "false").trim().toBoolean()
 
 // Assinatura de release: keystore.properties (fora do git) ou variáveis de ambiente no CI.
 val keystoreProps = rootProperties("keystore.properties")
@@ -44,6 +47,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField("String", "OVIGIA_API_URL", "\"$ovigiaApiUrl\"")
+        buildConfigField("boolean", "FAKE_BILLING", "false")
     }
 
     signingConfigs {
@@ -63,6 +67,7 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             buildConfigField("String", "OVIGIA_API_URL", "\"$ovigiaApiUrlDebug\"")
+            buildConfigField("boolean", "FAKE_BILLING", "$fakeBilling")
         }
         release {
             // R8: remove código/recursos não usados e ofusca. Regras em src/main/keepRules.
@@ -132,6 +137,9 @@ dependencies {
     // Tradução dos textos da Comic Vine (em inglês): no aparelho, sem chave nem custo
     implementation(libs.mlkit.translate)
     implementation(libs.jsoup)
+
+    // Vigia do Infinito: compra única pelo Google Play
+    implementation(libs.billing)
 
     testImplementation(libs.junit)
     testImplementation(libs.arch.core.testing)

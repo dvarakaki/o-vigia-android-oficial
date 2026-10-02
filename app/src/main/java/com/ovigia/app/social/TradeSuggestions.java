@@ -17,6 +17,9 @@ import java.util.Set;
  * perto; depois os mais conhecidos. No empate vale a ordem de entrada (os
  * catálogos vêm do desbloqueio mais recente para o mais antigo).
  *
+ * Lendários não entram em troca ({@link #isTradeable}): são do Vigia do Infinito
+ * que os encontrou.
+ *
  * Classe Java pura para ser testada na JVM.
  */
 public final class TradeSuggestions {
@@ -63,12 +66,18 @@ public final class TradeSuggestions {
         List<Pick> picks = new ArrayList<>();
         Set<Integer> seen = new HashSet<>();
         for (PublicProfile.Hero hero : candidates) {
-            if (owned.contains(hero.characterId) || !seen.add(hero.characterId)) continue;
+            if (owned.contains(hero.characterId) || !isTradeable(hero.characterId, roster)
+                    || !seen.add(hero.characterId)) continue;
             picks.add(evaluate(hero, progress, roster));
         }
         // Estável: no empate fica a ordem de entrada.
         picks.sort((a, b) -> Double.compare(b.score, a.score));
         return picks;
+    }
+
+    /** Se o herói pode ir ou vir numa troca: lendários, não. Sem o elenco, não dá para saber, e vale. */
+    public static boolean isTradeable(int characterId, @Nullable RosterCatalog roster) {
+        return roster == null || !roster.rarityOf(characterId).requiresInfinite();
     }
 
     private static Pick evaluate(PublicProfile.Hero hero, List<AchievementProgress> progress,

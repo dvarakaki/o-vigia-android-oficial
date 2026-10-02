@@ -349,7 +349,7 @@ public class GameViewModel extends ViewModel {
         if (isFinished()) return;
         markFinished();
         learningStore.recordLoss(accountId);
-        emit(GameEvent.finished(Outcome.LOST_UNREVEALED, -1, null, null));
+        emit(GameEvent.finished(Outcome.LOST_UNREVEALED, -1, null, null, null));
     }
 
     /** Encerra a partida uma única vez — toques repetidos não gravam aprendizado em dobro. */
@@ -359,7 +359,7 @@ public class GameViewModel extends ViewModel {
         if (profile == null) return;
         markFinished();
         learningStore.recordGame(accountId, characterId, answersGiven(), outcome);
-        emit(GameEvent.finished(outcome, characterId, profile.name, profile.imageUrl));
+        emit(GameEvent.finished(outcome, characterId, profile.name, profile.imageUrl, profile.rarity));
     }
 
     private void markFinished() {

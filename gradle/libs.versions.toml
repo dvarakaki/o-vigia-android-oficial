@@ -18,6 +18,7 @@ androidxTestJunit = "1.2.1"
 androidxTestRunner = "1.6.2"
 mlkitTranslate = "17.0.3"
 jsoup = "1.23.2"
+billing = "9.1.0"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -43,6 +44,7 @@ androidx-test-junit = { group = "androidx.test.ext", name = "junit", version.ref
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
 mlkit-translate = { group = "com.google.mlkit", name = "translate", version.ref = "mlkitTranslate" }
 jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
+billing = { group = "com.android.billingclient", name = "billing", version.ref = "billing" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

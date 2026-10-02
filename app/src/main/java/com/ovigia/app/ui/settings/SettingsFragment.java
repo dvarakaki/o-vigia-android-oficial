@@ -33,6 +33,7 @@ import com.ovigia.app.settings.SettingsUiState;
 import com.ovigia.app.settings.SettingsViewModel;
 import com.ovigia.app.ui.Motion;
 import com.ovigia.app.ui.SystemBarInsets;
+import com.ovigia.app.ui.premium.InfiniteSheet;
 
 /**
  * Configurações: idioma do app, vibração e tela ligada na partida, limpeza do
@@ -67,7 +68,8 @@ public class SettingsFragment extends Fragment {
                 .get(SettingsViewModel.class);
 
         // O toque ondula até os cantos arredondados do card sem vazar deles.
-        for (View card : new View[]{binding.cardLanguage, binding.cardGame, binding.cardData, binding.cardAbout}) {
+        for (View card : new View[]{binding.cardLanguage, binding.cardGame, binding.cardInfinite, binding.cardData,
+                binding.cardAbout}) {
             card.setClipToOutline(true);
         }
 
@@ -101,6 +103,13 @@ public class SettingsFragment extends Fragment {
         });
         binding.rowClearCache.setOnClickListener(v -> confirmClearCache());
         binding.rowForget.setOnClickListener(v -> confirmForget());
+        binding.rowInfinite.setOnClickListener(v -> InfiniteSheet.show(this, null));
+        container.infinite.state().observe(getViewLifecycleOwner(), infinite ->
+                binding.tvInfiniteSummary.setText(infinite.isInfinite()
+                        ? getString(R.string.settings_infinite_owned)
+                        : infinite.price != null
+                        ? getString(R.string.settings_infinite_offer_price, infinite.price)
+                        : getString(R.string.settings_infinite_offer)));
         binding.rowDataSource.setOnClickListener(v -> openUrl(COMIC_VINE_URL));
 
         binding.tvLanguageValue.setText(languageName(AppLocales.current()));
@@ -110,7 +119,8 @@ public class SettingsFragment extends Fragment {
         // Entrada em cascata só na primeira abertura (não ao girar nem ao voltar da troca de idioma).
         if (savedInstanceState == null) {
             motion.staggerIn(80, binding.tvSectionLanguage, binding.cardLanguage, binding.tvSectionGame,
-                    binding.cardGame, binding.tvSectionData, binding.cardData, binding.tvSectionAbout,
+                    binding.cardGame, binding.tvSectionInfinite, binding.cardInfinite, binding.tvSectionData,
+                    binding.cardData, binding.tvSectionAbout,
                     binding.cardAbout, binding.tvDisclaimer);
         }
 

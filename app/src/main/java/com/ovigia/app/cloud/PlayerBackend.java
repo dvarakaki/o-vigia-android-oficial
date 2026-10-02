@@ -91,17 +91,40 @@ public interface PlayerBackend {
     List<Hero> loadHeroes(String uid) throws CloudException;
 
     /**
+     * Personagens lendários que o Vigia acertou enquanto a conta não era Vigia do
+     * Infinito: o servidor os guarda lacrados, fora da coleção, e os libera quando
+     * a conta vira ({@link #verifyPurchase}).
+     */
+    List<Hero> loadSealed(String uid) throws CloudException;
+
+    /**
      * Espera a partida que acabou de terminar com {@code characterId} subir (até um
-     * limite de tempo; sem rede, ela continua na fila) e diz se foi ela que pôs o
-     * herói na coleção.
+     * limite de tempo; sem rede, ela continua na fila) e diz o que ela fez com o herói.
      *
-     * @return {@code true} se o herói é novo, {@code false} se a conta já tinha, ou
-     *     {@code null} se não dá para saber
+     * @return o veredito do servidor, ou {@code null} se não dá para saber (sem rede)
      */
     @Nullable
-    Boolean awaitUnlock(String uid, int characterId);
+    Grant awaitUnlock(String uid, int characterId);
 
     void markHeroesSeen(String uid, Collection<Integer> characterIds);
+
+    // ---------------------------------------------------------------- Vigia do Infinito
+
+    /**
+     * Se a conta é Vigia do Infinito, pelo servidor (ou pela última resposta dele,
+     * sem rede); {@code null} se nunca deu para saber.
+     */
+    @Nullable
+    Boolean loadInfiniteWatcher(String uid) throws CloudException;
+
+    /**
+     * Manda uma compra do Google Play para o servidor conferir na Google Play
+     * Developer API. Ele confirma a compra paga (acknowledge) e, se a conta virou
+     * Vigia do Infinito, libera os lendários lacrados. Precisa de rede.
+     *
+     * @return se a conta é Vigia do Infinito depois da conferência
+     */
+    boolean verifyPurchase(String uid, String productId, String purchaseToken) throws CloudException;
 
     // ---------------------------------------------------------------- memória do Vigia
 
@@ -191,7 +214,17 @@ public interface PlayerBackend {
         }
     }
 
-    /** Herói desbloqueado, com nome e retrato. */
+    /** O que a partida em que o Vigia acertou fez com o herói. */
+    enum Grant {
+        /** Entrou na coleção agora. */
+        NEW,
+        /** A conta já tinha. */
+        EXISTING,
+        /** Lendário para quem não é Vigia do Infinito: ficou lacrado (agora ou antes). */
+        SEALED
+    }
+
+    /** Herói desbloqueado (ou lacrado, em {@link #loadSealed}), com nome e retrato. */
     final class Hero {
         public final int characterId;
         public final String name;

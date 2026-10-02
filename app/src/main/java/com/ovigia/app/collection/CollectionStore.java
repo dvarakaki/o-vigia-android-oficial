@@ -23,6 +23,11 @@ import java.util.Map;
  * atualizada na hora quando o app sabe que um herói entrou (sem esperar a
  * próxima leitura).
  *
+ * Nem todo herói entra direto: um lendário, para quem não é Vigia do Infinito,
+ * fica lacrado no servidor, fora da coleção, e entra nela quando a compra é
+ * validada ({@link #releaseSealed}). O {@link Gate} só serve para adivinhar o
+ * lacre enquanto a partida não sobe (sem rede).
+ *
  * Operações bloqueantes (rede, ou a cópia do aparelho sem ela): chamar fora da
  * main thread. Thread-safe.
  */
@@ -30,13 +35,40 @@ public final class CollectionStore {
 
     private static final String TAG = "CollectionStore";
 
+    /** Quem a conta pode levar para a coleção agora (pelo que o app sabe). */
+    public interface Gate {
+        boolean admits(String accountId, int characterId);
+
+        /** Todo herói entra (sem raridades pagas). */
+        Gate OPEN = (accountId, characterId) -> true;
+    }
+
+    /** O que aconteceu ao tentar desbloquear um herói. */
+    public enum Unlock {
+        /** Entrou na coleção agora. */
+        NEW,
+        /** Já estava na coleção. */
+        EXISTING,
+        /** A conta ainda não pode levá-lo: ficou lacrado à espera (ou já estava). */
+        SEALED
+    }
+
     private final PlayerBackend backend;
+    private final Gate gate;
     /** Coleção da última conta lida, por id do herói. */
     @Nullable private String loadedFor;
     private Map<Integer, Entry> entries = new LinkedHashMap<>();
+    /** Lacrados da última conta lida, por id do herói. */
+    @Nullable private String sealedLoadedFor;
+    private Map<Integer, Entry> sealed = new LinkedHashMap<>();
 
     public CollectionStore(PlayerBackend backend) {
+        this(backend, Gate.OPEN);
+    }
+
+    public CollectionStore(PlayerBackend backend, Gate gate) {
         this.backend = backend;
+        this.gate = gate;
     }
 
     public synchronized boolean contains(String accountId, int characterId) {
@@ -45,19 +77,43 @@ public final class CollectionStore {
 
     /**
      * O Vigia acertou o personagem numa partida já gravada
-     * ({@code LearningStore.recordGame}): espera a partida subir — é ela que
-     * desbloqueia o herói no servidor — e garante o herói na coleção. Devolve
-     * {@code false} se a conta já tinha o herói antes dessa partida (a data
-     * original é mantida). Sem rede, a partida sobe depois e o herói aparece aqui
-     * desde já.
+     * ({@code LearningStore.recordGame}). Devolve {@code false} se a conta já tinha
+     * o herói antes dessa partida (a data original é mantida) ou se ele ficou lacrado.
      */
     public synchronized boolean save(String accountId, int characterId, String name, String imageUrl) {
-        Boolean isNew = backend.awaitUnlock(accountId, characterId);
+        return unlock(accountId, characterId, name, imageUrl) == Unlock.NEW;
+    }
+
+    /**
+     * O Vigia acertou o personagem numa partida já gravada: espera a partida subir —
+     * é ela que desbloqueia (ou lacra) o herói no servidor — e atualiza a cópia daqui.
+     * Sem rede, a partida sobe depois e vale o palpite do app desde já.
+     */
+    public synchronized Unlock unlock(String accountId, int characterId, String name, String imageUrl) {
+        PlayerBackend.Grant grant = backend.awaitUnlock(accountId, characterId);
         Map<Integer, Entry> map = entriesOf(accountId);
         boolean known = map.containsKey(characterId);
-        if (!known) map.put(characterId, new Entry(characterId, name, imageUrl, System.currentTimeMillis(), false));
-        // A coleção pode ter sido lida depois de a partida subir (e já ter o herói): vale o que o servidor disse.
-        return isNew != null ? isNew : !known;
+        if (grant == null) {
+            if (known) grant = PlayerBackend.Grant.EXISTING;
+            else grant = gate.admits(accountId, characterId) ? PlayerBackend.Grant.NEW : PlayerBackend.Grant.SEALED;
+        }
+        long now = System.currentTimeMillis();
+        switch (grant) {
+            case SEALED:
+                Map<Integer, Entry> waiting = sealedOf(accountId);
+                if (!waiting.containsKey(characterId)) {
+                    waiting.put(characterId, new Entry(characterId, name, imageUrl, now, false));
+                }
+                return Unlock.SEALED;
+            case NEW:
+                // A coleção pode ter sido lida depois de a partida subir (e já ter o herói): vale o que o servidor disse.
+                if (!known) map.put(characterId, new Entry(characterId, name, imageUrl, now, false));
+                sealedOf(accountId).remove(characterId);
+                return Unlock.NEW;
+            default:
+                if (!known) map.put(characterId, new Entry(characterId, name, imageUrl, now, false));
+                return Unlock.EXISTING;
+        }
     }
 
     /**
@@ -80,6 +136,33 @@ public final class CollectionStore {
         return Collections.unmodifiableList(copy);
     }
 
+    /** Lacrados da conta, à espera do Vigia do Infinito, do mais recente para o mais antigo. */
+    public synchronized List<Entry> listSealed(String accountId) {
+        List<Entry> copy = new ArrayList<>(sealedOf(accountId).values());
+        copy.sort((a, b) -> Long.compare(b.savedAt, a.savedAt));
+        return Collections.unmodifiableList(copy);
+    }
+
+    /**
+     * A conta virou Vigia do Infinito e o servidor já levou os lacrados para a
+     * coleção: relê os dois e devolve os que entraram (como novos — o catálogo toca
+     * a revelação).
+     */
+    public synchronized List<Entry> releaseSealed(String accountId) {
+        Map<Integer, Entry> waiting = sealedOf(accountId);
+        if (waiting.isEmpty()) return Collections.emptyList();
+        List<Integer> before = new ArrayList<>(waiting.keySet());
+        invalidate();
+        Map<Integer, Entry> map = entriesOf(accountId);
+        sealedOf(accountId);
+        List<Entry> released = new ArrayList<>();
+        for (Integer id : before) {
+            Entry e = map.get(id);
+            if (e != null) released.add(e);
+        }
+        return Collections.unmodifiableList(released);
+    }
+
     /**
      * Marca heróis como já vistos no catálogo: a animação do cadeado sumindo toca
      * uma única vez por herói.
@@ -100,6 +183,8 @@ public final class CollectionStore {
     public synchronized void invalidate() {
         loadedFor = null;
         entries = new LinkedHashMap<>();
+        sealedLoadedFor = null;
+        sealed = new LinkedHashMap<>();
     }
 
     private Map<Integer, Entry> entriesOf(String accountId) {
@@ -119,11 +204,28 @@ public final class CollectionStore {
         return map;
     }
 
-    /** Herói desbloqueado. */
+    private Map<Integer, Entry> sealedOf(String accountId) {
+        if (accountId.equals(sealedLoadedFor)) return sealed;
+        Map<Integer, Entry> map = new LinkedHashMap<>();
+        try {
+            for (PlayerBackend.Hero h : backend.loadSealed(accountId)) {
+                map.put(h.characterId, new Entry(h.characterId, h.name, h.imageUrl, h.unlockedAt, false));
+            }
+        } catch (CloudException e) {
+            Log.i(TAG, "Lacrados indisponíveis (" + e.reason + ")");
+            return map;
+        }
+        sealedLoadedFor = accountId;
+        sealed = map;
+        return map;
+    }
+
+    /** Herói desbloqueado (ou lacrado, em {@link #listSealed}). */
     public static final class Entry {
         public final int characterId;
         public final String name;
         public final String imageUrl;
+        /** Quando entrou na coleção (ou, lacrado, quando o Vigia o acertou). */
         public final long savedAt;
         /** Já apareceu no catálogo depois de desbloqueado (a revelação animada já tocou). */
         public final boolean seenInCatalog;

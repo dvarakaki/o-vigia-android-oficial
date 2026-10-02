@@ -25,4 +25,12 @@
     <color name="vigia_gold_soft">#99E8C468</color>
     <color name="vigia_gold_bg">#26E8C468</color>
     <color name="vigia_dialog">#FF15183A</color>
+
+    <!-- Raridade dos personagens: quanto menos conhecido, mais raro. -->
+    <color name="rarity_common">#FFAEB7CF</color>
+    <color name="rarity_rare">#FF5B8CFF</color>
+    <color name="rarity_epic">#FFB57BFF</color>
+    <!-- Lendário e o Vigia do Infinito: um âmbar mais quente que o dourado da interface. -->
+    <color name="rarity_legendary">#FFFFAE42</color>
+    <color name="rarity_legendary_bg">#29FFAE42</color>
 </resources>

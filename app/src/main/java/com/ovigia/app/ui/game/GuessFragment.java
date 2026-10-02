@@ -14,6 +14,7 @@ import com.ovigia.app.databinding.PanelGuessBinding;
 import com.ovigia.app.engine.CharacterProfile;
 import com.ovigia.app.ui.Motion;
 import com.ovigia.app.ui.Portraits;
+import com.ovigia.app.ui.RarityViews;
 import com.ovigia.app.ui.WatcherArt;
 
 /** O motor arrisca um personagem; o jogador confirma ou rejeita. */
@@ -86,6 +87,8 @@ public class GuessFragment extends GameFragment {
             return false;
         }
         panel.tvGuessName.setText(guess.name);
+        RarityViews.bindChip(panel.tvGuessRarity, guess.rarity);
+        panel.tvGuessRarity.setVisibility(View.VISIBLE);
         panel.imageGuess.setContentDescription(guess.name);
         Glide.with(this)
                 .load(guess.imageUrl)

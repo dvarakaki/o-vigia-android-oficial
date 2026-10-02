@@ -55,6 +55,7 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
 
     private final Map<String, Account> accounts = new HashMap<>();
     private final Map<String, Map<Integer, Hero>> heroes = new HashMap<>();
+    private final Map<String, Map<Integer, Hero>> sealed = new HashMap<>();
     private final Map<String, Learning> learning = new HashMap<>();
     private final Map<String, List<Game>> games = new HashMap<>();
 
@@ -140,6 +141,10 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
         return new ArrayList<>(heroes.getOrDefault(uid, new LinkedHashMap<>()).values());
     }
 
+    public List<Hero> sealedOf(String uid) {
+        return new ArrayList<>(sealed.getOrDefault(uid, new LinkedHashMap<>()).values());
+    }
+
     public Learning learningOf(String uid) {
         return learning.getOrDefault(uid, Learning.empty());
     }
@@ -220,6 +225,7 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
         String uid = reauthenticate(password);
         accounts.remove(uid);
         heroes.remove(uid);
+        sealed.remove(uid);
         learning.remove(uid);
         games.remove(uid);
         for (String f : new HashSet<>(friendsOf(uid))) friendsOf(f).remove(uid);
@@ -299,12 +305,18 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
     /** Nome dos personagens no elenco do "servidor". */
     public final Map<Integer, String> rosterNames = new HashMap<>();
 
-    /** O que a última partida de cada personagem fez: true se pôs o herói na coleção. */
-    private final Map<Integer, Boolean> grants = new HashMap<>();
+    /** O que a última partida de cada personagem fez com o herói. */
+    private final Map<Integer, Grant> grants = new HashMap<>();
+    /** Lendários do elenco do "servidor": só entram na coleção de quem é Vigia do Infinito. */
+    public final Set<Integer> legendary = new HashSet<>();
+    /** Contas que são Vigia do Infinito. */
+    public final Set<String> infiniteWatchers = new HashSet<>();
+    /** Tokens de compra que o "Google Play" reconhece como pagos. */
+    public final Set<String> paidTokens = new HashSet<>();
 
     @Nullable
     @Override
-    public Boolean awaitUnlock(String uid, int characterId) {
+    public Grant awaitUnlock(String uid, int characterId) {
         flushCount++;
         return grants.remove(characterId);
     }
@@ -316,6 +328,32 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
             Hero h = map.get(id);
             if (h != null) map.put(id, new Hero(h.characterId, h.name, h.imageUrl, h.unlockedAt, true));
         }
+    }
+
+    @Override
+    public List<Hero> loadSealed(String uid) throws CloudException {
+        checkOwner(uid);
+        return sealedOf(uid);
+    }
+
+    @Nullable
+    @Override
+    public Boolean loadInfiniteWatcher(String uid) throws CloudException {
+        checkOwner(uid);
+        return infiniteWatchers.contains(uid);
+    }
+
+    /** Como a API: confere o token e, se a conta virou Vigia do Infinito, os lacrados entram na coleção. */
+    @Override
+    public boolean verifyPurchase(String uid, String productId, String purchaseToken) throws CloudException {
+        checkOwner(uid);
+        if (!paidTokens.contains(purchaseToken)) throw new CloudException(CloudException.Reason.PURCHASE_INVALID);
+        infiniteWatchers.add(uid);
+        Map<Integer, Hero> waiting = sealed.remove(uid);
+        if (waiting != null) {
+            for (Hero h : waiting.values()) grantHero(uid, new Hero(h.characterId, h.name, h.imageUrl, h.unlockedAt, false));
+        }
+        return true;
     }
 
     @Override
@@ -338,12 +376,18 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
                 sumCount[1] += 1;
             }
             games.computeIfAbsent(uid, k -> new ArrayList<>()).add(game);
-            // Como a API: a partida em que o Vigia acertou desbloqueia o herói.
+            // Como a API: a partida em que o Vigia acertou desbloqueia o herói (ou lacra o lendário).
             if (com.ovigia.app.catalog.UnlockRules.unlocks(game.outcome)) {
-                boolean isNew = !heroes.getOrDefault(uid, new LinkedHashMap<>()).containsKey(game.characterId);
-                grantHero(uid, new Hero(game.characterId, rosterNames.getOrDefault(game.characterId, ""), null,
-                        game.timestamp, false));
-                grants.put(game.characterId, isNew);
+                boolean has = heroes.getOrDefault(uid, new LinkedHashMap<>()).containsKey(game.characterId);
+                Hero hero = new Hero(game.characterId, rosterNames.getOrDefault(game.characterId, ""), null,
+                        game.timestamp, false);
+                if (!has && legendary.contains(game.characterId) && !infiniteWatchers.contains(uid)) {
+                    sealed.computeIfAbsent(uid, k -> new LinkedHashMap<>()).putIfAbsent(game.characterId, hero);
+                    grants.put(game.characterId, Grant.SEALED);
+                } else {
+                    grantHero(uid, hero);
+                    grants.put(game.characterId, has ? Grant.EXISTING : Grant.NEW);
+                }
             }
         }
         learning.put(uid, new Learning(l.gamesPlayed + 1, l.engineWins + (engineWin ? 1 : 0), picks, beliefs));

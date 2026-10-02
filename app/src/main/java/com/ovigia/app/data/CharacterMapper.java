@@ -1,5 +1,6 @@
 package com.ovigia.app.data;
 
+import com.ovigia.app.data.roster.Rarity;
 import com.ovigia.app.data.roster.RosterCatalog;
 import com.ovigia.app.engine.CharacterProfile;
 import com.ovigia.app.model.Character;
@@ -13,7 +14,7 @@ import java.util.Map;
  * a cada atributo usado.
  *
  * Gênero e origem vêm da Comic Vine (campos confiáveis no endpoint de lista).
- * Times, poderes, vilania e reconhecimento vêm do {@link RosterCatalog}.
+ * Times, poderes, vilania, reconhecimento e raridade vêm do {@link RosterCatalog}.
  */
 public final class CharacterMapper {
 
@@ -74,7 +75,7 @@ public final class CharacterMapper {
         String heroImage = c.image != null ? c.image.bestForHero() : null;
         String thumbnail = c.image != null ? c.image.bestForThumbnail() : null;
         return new CharacterProfile(c.id, c.name, heroImage, thumbnail, attrs, c.issueCount,
-                entry != null && entry.mainstream);
+                entry != null && entry.mainstream, entry != null ? entry.rarity() : Rarity.COMMON);
     }
 
     private void put(Map<String, Double> attrs, Map<String, String> questionTextByKey,

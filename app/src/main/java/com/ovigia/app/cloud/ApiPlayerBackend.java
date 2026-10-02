@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiPredicate;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -66,6 +67,7 @@ public final class ApiPlayerBackend implements PlayerBackend {
     private static final String MIRROR_HEROES = "heroes";
     private static final String MIRROR_LEARNING = "learning";
     private static final String MIRROR_GAMES = "games";
+    private static final String MIRROR_ENTITLEMENTS = "entitlements";
 
     private final ApiHttp http;
     private final HeroPortraits portraits;
@@ -78,8 +80,13 @@ public final class ApiPlayerBackend implements PlayerBackend {
 
     /** A última {@code /v1/me} lida (da conta com sessão aberta). */
     @Nullable private volatile JsonObject me;
-    /** O que o servidor respondeu às partidas que subiram: personagem -> o herói era novo. */
-    private final Map<Integer, Boolean> grants = new java.util.concurrent.ConcurrentHashMap<>();
+    /** O que o servidor respondeu às partidas que subiram: personagem -> o que a partida fez com o herói. */
+    private final Map<Integer, Grant> grants = new java.util.concurrent.ConcurrentHashMap<>();
+    /**
+     * Se uma partida ainda na fila (sem rede) deixaria o herói lacrado: o palpite do app
+     * até o servidor responder. Padrão: nunca.
+     */
+    private volatile BiPredicate<String, Integer> sealsOffline = (uid, characterId) -> false;
 
     /**
      * @param dataDir pasta do app onde ficam a cópia dos dados e a fila (resolvida no primeiro uso)
@@ -100,6 +107,11 @@ public final class ApiPlayerBackend implements PlayerBackend {
     @Override
     public boolean isConfigured() {
         return http.isConfigured();
+    }
+
+    /** Como adivinhar, sem rede, se a partida lacra o herói (ver {@link #sealsOffline}). */
+    public void setSealsOffline(BiPredicate<String, Integer> predicate) {
+        sealsOffline = predicate;
     }
 
     // ---------------------------------------------------------------- sessão
@@ -274,6 +286,16 @@ public final class ApiPlayerBackend implements PlayerBackend {
 
     @Override
     public List<Hero> loadHeroes(String uid) throws CloudException {
+        return heroes(uid, "unlocked");
+    }
+
+    @Override
+    public List<Hero> loadSealed(String uid) throws CloudException {
+        return heroes(uid, "sealed");
+    }
+
+    /** Os heróis da conta num estado ({@code unlocked} ou {@code sealed}). */
+    private List<Hero> heroes(String uid, String state) throws CloudException {
         requireSession(uid);
         flushPendingWrites();
         JsonArray heroes;
@@ -286,11 +308,10 @@ public final class ApiPlayerBackend implements PlayerBackend {
             if (saved == null) throw new CloudException(Reason.OFFLINE, f);
             heroes = Json.arr(saved);
         }
-        for (JsonObject op : pending.of(uid)) heroes = applyToHeroes(heroes, op, null);
+        for (JsonObject op : pending.of(uid)) heroes = applyToHeroes(uid, heroes, op, null);
         List<Hero> list = new ArrayList<>();
         for (JsonObject h : Json.objects(heroes)) {
-            // Lacrado: achado, mas só abre para o Vigia do Infinito (fora do catálogo desta versão).
-            if (!"unlocked".equals(Json.str(h, "state"))) continue;
+            if (!state.equals(Json.str(h, "state"))) continue;
             int id = Json.intOr(h, "characterId", -1);
             if (id < 0) continue;
             String name = Json.str(h, "name");
@@ -315,24 +336,55 @@ public final class ApiPlayerBackend implements PlayerBackend {
 
     @Nullable
     @Override
-    public Boolean awaitUnlock(String uid, int characterId) {
+    public Grant awaitUnlock(String uid, int characterId) {
         flushPendingWrites();
-        Boolean answered = grants.remove(characterId);
+        Grant answered = grants.remove(characterId);
         if (answered != null) return answered;
-        // A partida ainda está na fila (sem rede): é novo se a última cópia do servidor não tinha o herói.
+        // A partida ainda está na fila (sem rede): vale a última cópia do servidor e, sem o herói nela, o palpite.
         for (JsonObject op : pending.of(uid)) {
             JsonObject body = OP_GAME.equals(Json.str(op, "type")) ? Json.obj(op, "body") : null;
             if (body == null || Json.intOr(body, "characterId", -1) != characterId) continue;
             JsonElement saved = mirror.read(uid, MIRROR_HEROES);
             if (saved == null) return null;
             for (JsonObject h : Json.objects(Json.arr(saved))) {
-                if (Json.intOr(h, "characterId", -1) == characterId && "unlocked".equals(Json.str(h, "state"))) {
-                    return false;
-                }
+                if (Json.intOr(h, "characterId", -1) != characterId) continue;
+                return "sealed".equals(Json.str(h, "state")) ? Grant.SEALED : Grant.EXISTING;
             }
-            return true;
+            return sealsOffline.test(uid, characterId) ? Grant.SEALED : Grant.NEW;
         }
         return null;
+    }
+
+    // ---------------------------------------------------------------- Vigia do Infinito
+
+    @Nullable
+    @Override
+    public Boolean loadInfiniteWatcher(String uid) throws CloudException {
+        requireSession(uid);
+        JsonElement entitlements;
+        try {
+            entitlements = http.get("v1/me/entitlements");
+            mirror.write(uid, MIRROR_ENTITLEMENTS, entitlements);
+        } catch (ApiHttp.Failure f) {
+            if (!f.isOffline()) throw cloud(f);
+            entitlements = mirror.read(uid, MIRROR_ENTITLEMENTS);
+            if (entitlements == null) return null;
+        }
+        return entitlements.isJsonObject() && Json.bool(entitlements.getAsJsonObject(), "infiniteWatcher");
+    }
+
+    @Override
+    public boolean verifyPurchase(String uid, String productId, String purchaseToken) throws CloudException {
+        requireSession(uid);
+        JsonObject body = new JsonObject();
+        body.addProperty("productId", productId);
+        body.addProperty("purchaseToken", purchaseToken);
+        JsonObject result = object(call(() -> http.post("v1/purchases", body)));
+        boolean infinite = Json.bool(result, "infiniteWatcher");
+        JsonObject entitlements = new JsonObject();
+        entitlements.addProperty("infiniteWatcher", infinite);
+        mirror.write(uid, MIRROR_ENTITLEMENTS, entitlements);
+        return infinite;
     }
 
     /** Espera a fila subir (até um limite de tempo; sem rede, ela continua lá). */
@@ -545,12 +597,15 @@ public final class ApiPlayerBackend implements PlayerBackend {
         return null;
     }
 
-    /** Se a partida pôs o herói na coleção agora ou se a conta já tinha (ver {@link #awaitUnlock}). */
+    /** O que a partida fez com o herói: novo, já tinha ou lacrado (ver {@link #awaitUnlock}). */
     private void rememberGrant(JsonObject op, JsonElement response) {
         JsonObject hero = response.isJsonObject() ? Json.obj(response.getAsJsonObject(), "hero") : null;
         if (!OP_GAME.equals(Json.str(op, "type")) || hero == null) return;
         int id = Json.intOr(hero, "characterId", -1);
-        if (id >= 0 && "unlocked".equals(Json.str(hero, "state"))) grants.put(id, Json.bool(hero, "isNew"));
+        if (id < 0) return;
+        String state = Json.str(hero, "state");
+        if ("sealed".equals(state)) grants.put(id, Grant.SEALED);
+        else if ("unlocked".equals(state)) grants.put(id, Json.bool(hero, "isNew") ? Grant.NEW : Grant.EXISTING);
     }
 
     /** O servidor gravou {@code op}: a cópia do aparelho passa a contar com ela (para abrir sem rede). */
@@ -564,7 +619,7 @@ public final class ApiPlayerBackend implements PlayerBackend {
         JsonElement heroes = mirror.read(uid, MIRROR_HEROES);
         if (heroes != null) {
             JsonObject answer = response.isJsonObject() ? response.getAsJsonObject() : new JsonObject();
-            mirror.write(uid, MIRROR_HEROES, applyToHeroes(Json.arr(heroes), op, answer));
+            mirror.write(uid, MIRROR_HEROES, applyToHeroes(uid, Json.arr(heroes), op, answer));
         }
     }
 
@@ -575,9 +630,9 @@ public final class ApiPlayerBackend implements PlayerBackend {
      * "vistos" marca.
      *
      * @param answer o que o servidor respondeu à partida (aí vale o herói que ele deu, ou nenhum),
-     *               ou {@code null} se ela ainda está na fila (vale a regra do app)
+     *               ou {@code null} se ela ainda está na fila (vale a regra do app, com o palpite do lacre)
      */
-    private JsonArray applyToHeroes(JsonArray heroes, JsonObject op, @Nullable JsonObject answer) {
+    private JsonArray applyToHeroes(String uid, JsonArray heroes, JsonObject op, @Nullable JsonObject answer) {
         String type = Json.str(op, "type");
         Map<Integer, JsonObject> byId = new LinkedHashMap<>();
         for (JsonObject h : Json.objects(heroes)) byId.put(Json.intOr(h, "characterId", -1), h.deepCopy());
@@ -586,7 +641,8 @@ public final class ApiPlayerBackend implements PlayerBackend {
             Outcome outcome = body == null ? null : outcome(Json.str(body, "outcome"));
             int id = body == null ? -1 : Json.intOr(body, "characterId", -1);
             JsonObject grant = answer == null ? null : Json.obj(answer, "hero");
-            String state = answer == null ? "unlocked" : grant == null ? null : Json.str(grant, "state");
+            String state = answer == null ? (id >= 0 && sealsOffline.test(uid, id) ? "sealed" : "unlocked")
+                    : grant == null ? null : Json.str(grant, "state");
             if (outcome != null && UnlockRules.unlocks(outcome) && id >= 0 && !byId.containsKey(id)
                     && state != null) {
                 JsonObject hero = new JsonObject();

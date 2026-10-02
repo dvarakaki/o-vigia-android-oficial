@@ -19,6 +19,10 @@ public final class CloudException extends Exception {
         NOT_SIGNED_IN,
         /** Tentativas demais em pouco tempo: o servidor pediu para esperar. */
         TOO_MANY_ATTEMPTS,
+        /** Vigia do Infinito: o Google Play não reconhece a compra. */
+        PURCHASE_INVALID,
+        /** Vigia do Infinito: a compra já é de outra conta do O Vigia. */
+        PURCHASE_IN_USE,
         FAILED
     }
 

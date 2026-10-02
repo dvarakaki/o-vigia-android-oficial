@@ -20,3 +20,8 @@ keystore.properties
 # Ferramentas locais
 .claude/
 .DS_Store
+
+# Sobras locais da época do Firebase (o app não usa mais)
+app/google-services.json
+firebase-debug.log
+firestore-debug.log

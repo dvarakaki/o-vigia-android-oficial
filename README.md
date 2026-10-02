@@ -36,7 +36,8 @@ um catálogo de heróis para colecionar e amigos para trocar figurinhas.
 - [Destaques](#destaques)
 - [Como o Vigia pensa](#como-o-vigia-pensa)
 - [Começando](#começando)
-- [Amigos online](#amigos-online)
+- [Raridade e Vigia do Infinito](#raridade-e-vigia-do-infinito)
+- [Conta e amigos online](#conta-e-amigos-online)
 - [Arquitetura](#arquitetura)
 - [Qualidade](#qualidade)
 - [Idiomas](#idiomas)
@@ -50,7 +51,8 @@ um catálogo de heróis para colecionar e amigos para trocar figurinhas.
 |---|---|
 | **Adivinhação de verdade** | Motor bayesiano em Java puro: escolhe a pergunta que mais reduz a incerteza, tolera respostas erradas e só chuta quando tem convicção. |
 | **Aprende com você** | Cada partida corrige as crenças do personagem jogado, inclusive em traços que a curadoria esqueceu. O aprendizado é por conta. |
-| **Catálogo para colecionar** | 173 personagens curados. O herói só entra na coleção quando o Vigia acerta — com animação de revelação no catálogo. |
+| **Catálogo para colecionar** | 267 personagens curados, em quatro raridades. O herói só entra na coleção quando o Vigia acerta — com animação de revelação no catálogo. |
+| **Vigia do Infinito** | Os lendários — os personagens que quase ninguém lembra — são exclusivos de quem compra o Vigia do Infinito (R$ 5,00, pagamento único pelo Google Play). |
 | **Conquistas** | Equipes, vilões, partidas e vitórias, com cartão comemorativo por raridade (comum, rara, lendária) por cima de qualquer tela. |
 | **Amigos e perfis** | `@usuario` único, pedidos de amizade, perfil com banner, bio, números, heróis e conquistas — visível só para amigos. |
 | **Troca de heróis** | Troca 1 por 1 entre amigos, com sugestão do herói que fecha a sua próxima conquista. Ninguém perde o seu. |
@@ -108,6 +110,73 @@ flowchart LR
 
 O build de debug usa o id `com.ovigia.app.debug` e pode ficar instalado ao lado do de release.
 Sem o endereço da API, o jogo funciona apenas com o que já estiver em cache.
+
+## Raridade e Vigia do Infinito
+
+Quanto menos conhecido o personagem, mais raro ele é. A raridade fica no `roster.json` e
+aparece no chute do Vigia, no resultado e no catálogo (gema no canto da carta e placar por
+raridade no topo).
+
+| Raridade | Regra de partida da curadoria | No elenco |
+|---|---|---|
+| Comum | conhecido do grande público com 1.500+ aparições, ou 4.000+ aparições | 48 |
+| Raro | os demais conhecidos do grande público, ou 1.500+ aparições | 100 |
+| Épico | 600+ aparições nos quadrinhos | 53 |
+| **Lendário** | o resto — os que quase ninguém lembra | 66 |
+
+As aparições vêm da Comic Vine; alguns ajustes à mão cobrem quem o cinema tornou mais
+conhecido do que os números dizem (Phil Coulson, Abominável, Mandarim, Chicote Negro).
+
+**Lendários são do Vigia do Infinito.** Qualquer um pode pensar num lendário e o Vigia
+adivinha normalmente. Quando ele acerta e a conta ainda não é Vigia do Infinito, o resultado
+mostra *"Você tentou desbloquear um personagem Lendário!"* e oferece a compra: o personagem
+fica **lacrado** — aparece no catálogo com o nome, sem imagem e sem ficha — até a conta virar.
+Comprou, todos os lacrados entram na coleção de uma vez, com a revelação animada.
+
+```mermaid
+flowchart LR
+    A["Vigia acerta<br/>um lendário"] --> B{"Conta é<br/>Vigia do Infinito?"}
+    B -- sim --> C["Entra na coleção"]
+    B -- não --> D["Lacrado<br/>(na API)"]
+    D --> E["Compra no<br/>Google Play"]
+    E --> F["Todos os lacrados<br/>entram na coleção"]
+```
+
+- **Compra única** (`vigia_do_infinito`), feita pelo Google Play Billing. O app manda o
+  `purchaseToken` para a API (`POST /v1/purchases`), que confere na Google Play Developer API e
+  marca a conta do O Vigia que comprou. Vale em qualquer aparelho em que essa conta entrar;
+  outra conta do O Vigia no mesmo Google Play não herda a compra.
+- **Pagamento pendente** (boleto, por exemplo) é tratado: a conta vira Vigia do Infinito
+  quando o Google Play confirmar, mesmo com o app aberto. A API confirma (*acknowledge*) toda
+  compra paga — sem isso o Google estorna em 3 dias — e escuta os estornos (RTDN), que lacram
+  os lendários de novo.
+- **Lendários não entram em trocas** entre amigos. Quem já tinha um lendário de versões
+  anteriores continua com ele.
+- **Quem decide é o servidor:** a API lacra o lendário ao gravar a partida e libera os
+  lacrados quando a compra é validada.
+
+<details>
+<summary><b>Configurar a venda no Play Console</b></summary>
+
+<br/>
+
+1. Publique o app numa faixa de teste (interna basta) — a compra só funciona com o app
+   instalado pelo Google Play, com a mesma assinatura. O APK do GitHub mostra a compra como
+   indisponível.
+2. Em **Monetizar → Produtos → Produtos no app**, crie o produto `vigia_do_infinito`
+   (compra única, não consumível) por **R$ 5,00** e ative-o.
+3. Em **Configurações → Teste de licença**, adicione as contas de teste para comprar sem
+   cobrança real.
+
+Para ver o fluxo inteiro antes disso, o build de debug tem uma loja de mentira:
+
+```properties
+FAKE_BILLING=true
+```
+
+no `local.properties`. Ela não cobra nada, não sai do processo e nunca entra no release.
+
+</details>
 
 ## Conta e amigos online
 
@@ -319,7 +388,7 @@ voltar continua de onde parou. A barra no topo da ficha oferece "Ver original" a
 `assets/roster.json` define o elenco. Para adicionar um personagem:
 
 ```json
-{"id": 1440, "name": "Wolverine", "teams": ["xmen"], "powers": ["forca", "cura", "armas", "sentidos"], "villain": 0.08, "mainstream": true}
+{"id": 1440, "name": "Wolverine", "teams": ["xmen"], "powers": ["forca", "cura", "armas", "sentidos"], "villain": 0.08, "mainstream": true, "rarity": "comum"}
 ```
 
 | Campo | Significado |
@@ -328,6 +397,7 @@ voltar continua de onde parou. A barra no topo da ficha oferece "Ver original" a
 | `teams`, `powers` | Precisam existir em `data/QuestionKeys` |
 | `villain` | Crença entre 0 e 1 — use valores intermediários para anti-heróis |
 | `mainstream` | Personagem conhecido do grande público (pesa no prior e nas sugestões de troca) |
+| `rarity` | `comum`, `raro`, `epico` ou `lendario` — ver [Raridade](#raridade-e-vigia-do-infinito) |
 
 O `RosterCatalogTest` valida o arquivo. Uma pergunta nova exige a chave em `QuestionKeys`,
 o texto `q_<chave>` em cada `strings.xml` e a linha correspondente em `QuestionTexts`; o

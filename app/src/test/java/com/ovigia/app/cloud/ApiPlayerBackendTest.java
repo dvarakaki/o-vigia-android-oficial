@@ -61,7 +61,7 @@ public class ApiPlayerBackendTest {
 
         backend.recordGame("u1", game(7), false);
 
-        assertEquals(Boolean.TRUE, backend.awaitUnlock("u1", 7));
+        assertEquals(PlayerBackend.Grant.NEW, backend.awaitUnlock("u1", 7));
         RecordedRequest request = server.takeRequest();
         assertEquals("/v1/games", request.getPath());
         JsonObject body = JsonParser.parseString(request.getBody().readUtf8()).getAsJsonObject();
@@ -74,7 +74,65 @@ public class ApiPlayerBackendTest {
     public void heroTheAccountAlreadyHadIsNotNew() throws Exception {
         server.enqueue(json(201, "{\"gameId\":1,\"hero\":{\"characterId\":7,\"state\":\"unlocked\",\"isNew\":false}}"));
         backend.recordGame("u1", game(7), false);
-        assertEquals(Boolean.FALSE, backend.awaitUnlock("u1", 7));
+        assertEquals(PlayerBackend.Grant.EXISTING, backend.awaitUnlock("u1", 7));
+    }
+
+    @Test
+    public void legendaryForAnAccountThatIsNotInfinite_isSealedByTheServer() throws Exception {
+        server.enqueue(json(201, "{\"gameId\":1,\"hero\":{\"characterId\":7,\"state\":\"sealed\",\"isNew\":true}}"));
+        backend.recordGame("u1", game(7), false);
+        assertEquals(PlayerBackend.Grant.SEALED, backend.awaitUnlock("u1", 7));
+    }
+
+    @Test
+    public void heroesAndSealedComeFromTheSameList() throws Exception {
+        String heroes = "[{\"characterId\":7,\"name\":\"Wolverine\",\"state\":\"unlocked\",\"unlockedAt\":\"2026-01-01T00:00:00Z\"},"
+                + "{\"characterId\":42,\"name\":\"Squirrel Girl\",\"state\":\"sealed\",\"foundAt\":\"2026-01-02T00:00:00Z\"}]";
+        for (int i = 0; i < 3; i++) server.enqueue(json(200, heroes));
+
+        assertEquals(7, backend.loadHeroes("u1").get(0).characterId);
+        assertEquals(1, backend.loadHeroes("u1").size());
+        assertEquals("Squirrel Girl", backend.loadSealed("u1").get(0).name);
+    }
+
+    @Test
+    public void purchaseGoesToTheServer_andTheAnswerSurvivesWithoutNetwork() throws Exception {
+        server.enqueue(json(200, "{\"state\":\"purchased\",\"infiniteWatcher\":true,\"changedHeroes\":[42]}"));
+
+        assertTrue(backend.verifyPurchase("u1", "vigia_do_infinito", "token-1"));
+        RecordedRequest request = server.takeRequest();
+        assertEquals("/v1/purchases", request.getPath());
+        JsonObject body = JsonParser.parseString(request.getBody().readUtf8()).getAsJsonObject();
+        assertEquals("vigia_do_infinito", body.get("productId").getAsString());
+        assertEquals("token-1", body.get("purchaseToken").getAsString());
+
+        server.shutdown();
+        assertEquals(Boolean.TRUE, backend.loadInfiniteWatcher("u1"));
+    }
+
+    @Test
+    public void purchaseOfAnotherAccount_isInUse() {
+        server.enqueue(json(409, "{\"error\":\"PURCHASE_IN_USE\",\"message\":\"x\"}"));
+        try {
+            backend.verifyPurchase("u1", "vigia_do_infinito", "token-1");
+            throw new AssertionError("devia recusar");
+        } catch (CloudException e) {
+            assertEquals(CloudException.Reason.PURCHASE_IN_USE, e.reason);
+        }
+    }
+
+    @Test
+    public void offlineLegendary_isGuessedSealed() throws Exception {
+        server.enqueue(json(200, "[]"));
+        backend.loadHeroes("u1");
+        server.shutdown();
+        backend.setSealsOffline((uid, id) -> id == 7);
+
+        backend.recordGame("u1", winningGame(7), true);
+
+        assertEquals(PlayerBackend.Grant.SEALED, backend.awaitUnlock("u1", 7));
+        assertTrue(backend.loadHeroes("u1").isEmpty());
+        assertEquals(7, backend.loadSealed("u1").get(0).characterId);
     }
 
     @Test
@@ -90,7 +148,7 @@ public class ApiPlayerBackendTest {
         backend.recordGame("u1", game(7), false);
 
         // Sem rede: o herói é novo porque a última cópia do servidor não o tinha.
-        assertEquals(Boolean.TRUE, backend.awaitUnlock("u1", 7));
+        assertEquals(PlayerBackend.Grant.NEW, backend.awaitUnlock("u1", 7));
         assertEquals(4, backend.loadLearning("u1").gamesPlayed);
         assertEquals(7, backend.recentGames("u1", 10).get(0).characterId);
 
@@ -146,6 +204,11 @@ public class ApiPlayerBackendTest {
 
     private static Game game(int characterId) {
         return new Game(NOW, characterId, Outcome.REVEALED_AFTER_LOSS,
+                Collections.singletonList(new AnswerRecord("is_human", 1.0)));
+    }
+
+    private static Game winningGame(int characterId) {
+        return new Game(NOW, characterId, Outcome.ENGINE_GUESSED,
                 Collections.singletonList(new AnswerRecord("is_human", 1.0)));
     }
 

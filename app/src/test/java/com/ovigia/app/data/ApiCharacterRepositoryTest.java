@@ -19,6 +19,7 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.StringReader;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +34,7 @@ import retrofit2.Response;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
-/** Carga do elenco quando a API responde algo que o Gson não entende. */
+/** Carga do elenco: respostas que o Gson não entende e o cache em disco de uma versão anterior. */
 public class ApiCharacterRepositoryTest {
 
     @Rule
@@ -147,6 +148,47 @@ public class ApiCharacterRepositoryTest {
         assertNull(result.error);
         assertEquals("1455", asked[0]);
         assertEquals("https://api.exemplo.com/v1/characters/media/abc", result.profiles.get(0).imageUrl);
+    }
+
+    private static Character character(int id, String name) {
+        Character c = new Character();
+        c.id = id;
+        c.name = name;
+        c.image = new ImageData();
+        c.image.superUrl = "https://exemplo.com/" + id + ".jpg";
+        return c;
+    }
+
+    @Test
+    public void freshCacheFromASmallerRoster_isFetchedAgain() {
+        // Cache de ontem, de quando o elenco só tinha o Homem de Ferro.
+        new CharacterDiskCache(() -> cacheFile).write(Collections.singletonList(character(1455, "Iron Man")));
+        int[] fetches = {0};
+        CharacterService api = new CharacterService() {
+            @Override
+            public Call<ComicVineResponse<List<Character>>> summaries(String ids) {
+                fetches[0]++;
+                ComicVineResponse<List<Character>> body = new ComicVineResponse<>();
+                body.statusCode = 1;
+                body.results = Arrays.asList(character(1455, "Iron Man"), character(2268, "Thor"));
+                return new FixedCall<>(Response.success(body));
+            }
+
+            @Override
+            public Call<ComicVineResponse<CharacterDetail>> detail(int id) {
+                throw new UnsupportedOperationException();
+            }
+        };
+        ApiCharacterRepository repository = new ApiCharacterRepository(api, true,
+                () -> RosterCatalog.parse(new StringReader("{\"characters\":["
+                        + "{\"id\":1455,\"powers\":[\"voo\"]},{\"id\":2268,\"powers\":[\"voo\"]}]}")),
+                () -> Collections.singletonMap(QuestionKeys.IS_VILLAIN, "É vilão?"),
+                learning, () -> null, () -> cacheFile, direct, direct);
+
+        Result result = load(repository);
+        assertNull(result.error);
+        assertEquals("o personagem novo do elenco aparece sem esperar o cache vencer", 2, result.profiles.size());
+        assertEquals(1, fetches[0]);
     }
 
     /** Chamada síncrona que devolve sempre a mesma resposta. */

@@ -532,4 +532,48 @@
     <string name="q_power_ilusao">Seu personagem cria ilusões?</string>
     <string name="q_power_jovem">Seu personagem começou a ser herói adolescente?</string>
     <string name="q_is_villain">Seu personagem é um vilão?</string>
+
+    <!-- Raridade dos personagens e o Vigia do Infinito (compra que libera os lendários). -->
+    <string name="rarity_common">Comum</string>
+    <string name="rarity_rare">Raro</string>
+    <string name="rarity_epic">Épico</string>
+    <string name="rarity_legendary">Lendário</string>
+    <string name="rarity_cd">Raridade: %1$s</string>
+    <string name="infinite_name">Vigia do Infinito</string>
+    <string name="infinite_become">Tornar-se Vigia do Infinito</string>
+    <string name="infinite_become_price">Tornar-se Vigia do Infinito · %1$s</string>
+    <string name="result_sealed_status">Lacrado</string>
+    <string name="result_sealed_hint">Você tentou desbloquear um personagem %1$s! Para vê-lo no catálogo e guardá-lo na sua coleção, torne-se um Vigia do Infinito. Até lá, ele fica lacrado esperando por você.</string>
+    <string name="infinite_sheet_title">Torne-se um Vigia do Infinito</string>
+    <string name="infinite_sheet_subtitle">O Vigia observa todos os universos. Com você, nenhum personagem fica de fora.</string>
+    <string name="infinite_sheet_found">Você tentou desbloquear um personagem %1$s.</string>
+    <string name="infinite_benefit_legendary">Os personagens Lendários entram na sua coleção sempre que o Vigia acertar</string>
+    <string name="infinite_benefit_detail">A ficha completa de cada Lendário, com biografia e poderes</string>
+    <string name="infinite_benefit_once">Pagamento único, sem assinatura. Vale para sempre nesta conta.</string>
+    <string name="infinite_owned_title">Você é um Vigia do Infinito</string>
+    <string name="infinite_owned_body">Todo personagem Lendário que o Vigia acertar entra na sua coleção.</string>
+    <string name="infinite_checking">Consultando o Google Play…</string>
+    <string name="infinite_pending">Pagamento pendente. Assim que o Google Play confirmar, você vira Vigia do Infinito.</string>
+    <string name="infinite_unavailable">O Google Play não respondeu. Confira a internet: a compra só funciona com o app instalado pelo Google Play.</string>
+    <string name="infinite_signed_out">Entre na sua conta para virar Vigia do Infinito: a compra fica guardada nela.</string>
+    <string name="infinite_other_account">Este Google Play já fez outra conta do O Vigia virar Vigia do Infinito. A compra fica com a conta que comprou.</string>
+    <string name="infinite_retry">Tentar de novo</string>
+    <string name="infinite_close">Fechar</string>
+    <string name="infinite_welcome">Bem-vindo, Vigia do Infinito! Os Lendários agora entram na sua coleção.</string>
+    <string name="infinite_notice_pending">Pagamento pendente: você vira Vigia do Infinito assim que o Google Play confirmar.</string>
+    <string name="infinite_notice_offline">Sem conexão com o Google Play. Tente de novo.</string>
+    <string name="infinite_notice_failed">A compra não foi concluída.</string>
+    <string name="catalog_cd_sealed">%1$s, personagem %2$s lacrado</string>
+    <string name="catalog_locked_hint_legendary">Lendário. Faça o Vigia acertar esse personagem e torne-se um Vigia do Infinito para levá-lo para a coleção.</string>
+    <string name="catalog_learn_more">Saiba mais</string>
+    <string name="catalog_cd_rarity_progress">%1$s: %2$d de %3$d</string>
+    <string name="settings_infinite_owned">Ativo nesta conta: os Lendários entram na sua coleção.</string>
+    <string name="settings_infinite_offer">Leve os personagens Lendários para a sua coleção.</string>
+    <string name="settings_infinite_offer_price">Leve os personagens Lendários para a sua coleção. %1$s, pagamento único.</string>
+    <plurals name="infinite_benefit_sealed">
+        <item quantity="one">%1$d Lendário que você já encontrou entra na hora</item>
+        <item quantity="many">Os %1$d Lendários que você já encontrou entram na hora</item>
+        <item quantity="other">Os %1$d Lendários que você já encontrou entram na hora</item>
+    </plurals>
+    <string name="catalog_rarity_count" translatable="false">%1$d/%2$d</string>
 </resources>
