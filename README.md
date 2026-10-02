@@ -175,6 +175,8 @@ FAKE_BILLING=true
 ```
 
 no `local.properties`. Ela não cobra nada, não sai do processo e nunca entra no release.
+Como quem confere a compra é a API, rode a API local com `PLAY_FAKE_PURCHASES=true`
+(só em desenvolvimento): ela aceita os tokens `debug-…` dessa loja.
 
 </details>
 

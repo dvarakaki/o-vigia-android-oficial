@@ -15,6 +15,8 @@ import java.util.UUID;
  * Loja de mentira, só para o build de debug ({@code FAKE_BILLING=true} no
  * {@code local.properties}): deixa ver o fluxo do Vigia do Infinito inteiro sem
  * publicar o app no Google Play. A "compra" vive só enquanto o processo viver.
+ * Os tokens começam com {@code debug-}: a API só os aceita com
+ * {@code PLAY_FAKE_PURCHASES=true} (desenvolvimento).
  *
  * Nunca entra no release: lá o {@code BuildConfig.FAKE_BILLING} é sempre falso e
  * o R8 apaga esta classe.
@@ -41,9 +43,9 @@ public final class DebugBilling implements Billing {
         new MaterialAlertDialogBuilder(activity)
                 .setTitle("Loja de teste (debug)")
                 .setMessage("Vigia do Infinito por " + PRICE + ". Nada é cobrado: esta loja só existe no build de debug.")
-                .setPositiveButton("Comprar", (d, w) -> finish(new Purchase(UUID.randomUUID().toString(),
+                .setPositiveButton("Comprar", (d, w) -> finish(new Purchase("debug-" + UUID.randomUUID(),
                         Purchase.State.PURCHASED, false, accountTag)))
-                .setNeutralButton("Pagamento pendente", (d, w) -> finish(new Purchase(UUID.randomUUID().toString(),
+                .setNeutralButton("Pagamento pendente", (d, w) -> finish(new Purchase("debug-" + UUID.randomUUID(),
                         Purchase.State.PENDING, false, accountTag)))
                 .setNegativeButton("Cancelar", (d, w) -> deliver(Response.CANCELED, Collections.emptyList()))
                 .setOnCancelListener(d -> deliver(Response.CANCELED, Collections.emptyList()))
