@@ -19,6 +19,7 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.StringReader;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +34,7 @@ import retrofit2.Response;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
-/** Carga do elenco quando a Comic Vine responde algo que o Gson não entende. */
+/** Carga do elenco: respostas que o Gson não entende e o cache em disco de uma versão anterior. */
 public class ComicVineCharacterRepositoryTest {
 
     @Rule
@@ -114,6 +115,97 @@ public class ComicVineCharacterRepositoryTest {
         assertNull(result.error);
         assertEquals(1, result.profiles.size());
         assertEquals("Iron Man", result.profiles.get(0).name);
+    }
+
+    private static Character character(int id, String name) {
+        Character c = new Character();
+        c.id = id;
+        c.name = name;
+        c.image = new ImageData();
+        c.image.superUrl = "https://exemplo.com/" + id + ".jpg";
+        return c;
+    }
+
+    @Test
+    public void freshCacheFromASmallerRoster_isFetchedAgain() {
+        // Cache de ontem, de quando o elenco só tinha o Homem de Ferro.
+        new CharacterDiskCache(() -> cacheFile).write(Collections.singletonList(character(1455, "Iron Man")));
+        int[] fetches = {0};
+        ComicVineService api = new ComicVineService() {
+            @Override
+            public Call<ComicVineResponse<List<Character>>> listCharacters(String apiKey, String format, int limit,
+                                                                           int offset, String filter,
+                                                                           String fieldList) {
+                fetches[0]++;
+                ComicVineResponse<List<Character>> body = new ComicVineResponse<>();
+                body.statusCode = 1;
+                body.numberOfTotalResults = 2;
+                body.results = Arrays.asList(character(1455, "Iron Man"), character(2268, "Thor"));
+                return new AnsweringCall<>(Response.success(body));
+            }
+
+            @Override
+            public Call<ComicVineResponse<CharacterDetail>> characterDetail(int id, String apiKey, String format) {
+                throw new UnsupportedOperationException();
+            }
+        };
+        ComicVineCharacterRepository repository = new ComicVineCharacterRepository(api, "chave", true,
+                () -> RosterCatalog.parse(new StringReader("{\"characters\":["
+                        + "{\"id\":1455,\"powers\":[\"voo\"]},{\"id\":2268,\"powers\":[\"voo\"]}]}")),
+                () -> Collections.singletonMap(QuestionKeys.IS_VILLAIN, "É vilão?"),
+                learning, () -> null, () -> cacheFile, direct, direct);
+
+        Result result = load(repository);
+        assertNull(result.error);
+        assertEquals("o personagem novo do elenco aparece sem esperar o cache vencer", 2, result.profiles.size());
+        assertEquals(1, fetches[0]);
+    }
+
+    /** Chamada síncrona que responde {@code response}. */
+    private static final class AnsweringCall<T> implements Call<T> {
+        private final Response<T> response;
+
+        AnsweringCall(Response<T> response) {
+            this.response = response;
+        }
+
+        @Override
+        public Response<T> execute() {
+            return response;
+        }
+
+        @Override
+        public void enqueue(Callback<T> callback) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isExecuted() {
+            return false;
+        }
+
+        @Override
+        public void cancel() { }
+
+        @Override
+        public boolean isCanceled() {
+            return false;
+        }
+
+        @Override
+        public Call<T> clone() {
+            return new AnsweringCall<>(response);
+        }
+
+        @Override
+        public Request request() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Timeout timeout() {
+            return Timeout.NONE;
+        }
     }
 
     /** Chamada síncrona que estoura com uma exceção não verificada, como o conversor do Gson faz. */

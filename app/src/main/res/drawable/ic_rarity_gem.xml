@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Gema da raridade: coroa clara e pavilhão em duas faces, legível a 12dp. Os tons são cinzas
+  para a cor da raridade entrar multiplicada (tintMode multiply) e manter o relevo.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:tint="@color/vigia_icon"
+    android:tintMode="multiply"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M6.5,3h11l4.5,6H2z" />
+    <path
+        android:fillColor="#FFD2D2D2"
+        android:pathData="M2,9h10v12.5z" />
+    <path
+        android:fillColor="#FF9E9E9E"
+        android:pathData="M12,9h10l-10,12.5z" />
+</vector>

@@ -18,9 +18,12 @@ import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.google.android.material.snackbar.Snackbar;
 import com.ovigia.app.databinding.ActivityMainBinding;
+import com.ovigia.app.premium.InfiniteWatcher;
 import com.ovigia.app.social.Achievement;
 import com.ovigia.app.ui.achievements.AchievementStage;
+import com.ovigia.app.ui.premium.InfiniteSheet;
 import com.ovigia.app.ui.splash.SplashStage;
 
 import java.util.List;
@@ -38,7 +41,9 @@ import java.util.List;
  *
  * As conquistas também são daqui: elas podem cair em qualquer tela, então quem
  * escuta o {@code AchievementsTracker} é a activity, e o cartão da comemoração
- * ({@link AchievementStage}) aparece por cima do que estiver na tela.
+ * ({@link AchievementStage}) aparece por cima do que estiver na tela. Os avisos
+ * da compra do Vigia do Infinito também: o pagamento pendente pode cair com o
+ * jogador em qualquer tela.
  */
 public class MainActivity extends AppCompatActivity {
 
@@ -77,6 +82,14 @@ public class MainActivity extends AppCompatActivity {
             achievements.show(unlocked);
         });
 
+        container.infinite.notices().observe(this, event -> {
+            // Com a gaveta aberta, o aviso é dela (por baixo ninguém o veria).
+            if (InfiniteSheet.isOpen()) return;
+            InfiniteWatcher.Notice notice = event.consume();
+            if (notice == null) return;
+            Snackbar.make(binding.navHost, noticeText(notice), Snackbar.LENGTH_LONG).show();
+        });
+
         // A cena de abertura é só da primeira criação: depois de girar a tela o
         // app já está aberto, e repeti-la seria um atraso sem motivo.
         if (savedInstanceState == null) {
@@ -92,6 +105,16 @@ public class MainActivity extends AppCompatActivity {
         if (splash != null) splash.skip();
         if (achievements != null) achievements.cancel();
         super.onDestroy();
+    }
+
+    private static int noticeText(InfiniteWatcher.Notice notice) {
+        switch (notice) {
+            case WELCOME: return R.string.infinite_welcome;
+            case PENDING: return R.string.infinite_notice_pending;
+            case OFFLINE: return R.string.infinite_notice_offline;
+            case FAILED:
+            default: return R.string.infinite_notice_failed;
+        }
     }
 
     /**

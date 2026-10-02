@@ -49,6 +49,7 @@ import java.util.concurrent.TimeoutException;
  * <ul>
  *   <li>{@code accounts/{uid}}: nome, bio, foto, banner, @usuario e conquistas comemoradas.</li>
  *   <li>{@code accounts/{uid}/heroes/{characterId}}: um documento por herói desbloqueado.</li>
+ *   <li>{@code accounts/{uid}/sealed/{characterId}}: lendários encontrados, à espera do Vigia do Infinito.</li>
  *   <li>{@code accounts/{uid}/games/{id}}: histórico de partidas com personagem conhecido.</li>
  *   <li>{@code accounts/{uid}/data/learning}: números, favoritos e crenças aprendidas — somados
  *   no servidor ({@link FieldValue#increment}), então dois aparelhos não se atropelam.</li>
@@ -134,6 +135,7 @@ public final class FirebasePlayerBackend implements PlayerBackend {
         // Os dados do jogador.
         DocumentReference account = accounts(db).document(uid);
         doomed.addAll(refs(server(account.collection("heroes"))));
+        doomed.addAll(refs(server(account.collection("sealed"))));
         doomed.addAll(refs(server(account.collection("games"))));
         doomed.add(learningDoc(db, uid));
         doomed.add(account);
@@ -243,6 +245,37 @@ public final class FirebasePlayerBackend implements PlayerBackend {
                 batch.set(heroes(db, uid).document(String.valueOf(id)),
                         Collections.singletonMap("seen", true), SetOptions.merge());
             }
+            return batch.commit();
+        });
+    }
+
+    @Override
+    public List<Hero> loadSealed(String uid) throws CloudException {
+        List<Hero> heroes = new ArrayList<>();
+        for (DocumentSnapshot doc : read(sealed(services.db(), uid)).getDocuments()) {
+            int id = parseId(doc.getId());
+            if (id < 0) continue;
+            heroes.add(new Hero(id, stringOr(doc.getString("name"), ""), doc.getString("image"),
+                    asLong(doc.get("at")), false));
+        }
+        return heroes;
+    }
+
+    @Override
+    public void saveSealed(String uid, Hero hero) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("name", hero.name);
+        data.put("image", hero.imageUrl);
+        data.put("at", hero.unlockedAt);
+        write(uid, db -> sealed(db, uid).document(String.valueOf(hero.characterId)).set(data));
+    }
+
+    @Override
+    public void deleteSealed(String uid, Collection<Integer> characterIds) {
+        if (characterIds.isEmpty()) return;
+        write(uid, db -> {
+            WriteBatch batch = db.batch();
+            for (Integer id : characterIds) batch.delete(sealed(db, uid).document(String.valueOf(id)));
             return batch.commit();
         });
     }
@@ -451,6 +484,10 @@ public final class FirebasePlayerBackend implements PlayerBackend {
 
     private static CollectionReference heroes(FirebaseFirestore db, String uid) {
         return accounts(db).document(uid).collection("heroes");
+    }
+
+    private static CollectionReference sealed(FirebaseFirestore db, String uid) {
+        return accounts(db).document(uid).collection("sealed");
     }
 
     private static CollectionReference games(FirebaseFirestore db, String uid) {

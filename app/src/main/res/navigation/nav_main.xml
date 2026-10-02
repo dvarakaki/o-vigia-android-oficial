@@ -111,6 +111,11 @@
         <argument
             android:name="outcome"
             app:argType="string" />
+        <!-- Rarity.name(): um lendário só entra na coleção do Vigia do Infinito. -->
+        <argument
+            android:name="rarity"
+            android:defaultValue="COMMON"
+            app:argType="string" />
     </fragment>
 
     <!--

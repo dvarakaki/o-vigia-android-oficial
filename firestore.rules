@@ -4,6 +4,7 @@ rules_version = '2';
 //
 //   accounts/{uid}                → conta do jogador   só o dono lê e grava
 //     heroes/{characterId}        → heróis desbloqueados
+//     sealed/{characterId}        → lendários à espera do Vigia do Infinito
 //     games/{id}                  → histórico de partidas
 //     data/learning               → números e memória do Vigia
 //   usernames/{username}          → { uid }            @usuario único

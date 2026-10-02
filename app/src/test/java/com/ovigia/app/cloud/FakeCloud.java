@@ -53,6 +53,7 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
 
     private final Map<String, Account> accounts = new HashMap<>();
     private final Map<String, Map<Integer, Hero>> heroes = new HashMap<>();
+    private final Map<String, Map<Integer, Hero>> sealed = new HashMap<>();
     private final Map<String, Learning> learning = new HashMap<>();
     private final Map<String, List<Game>> games = new HashMap<>();
 
@@ -133,6 +134,10 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
         return new ArrayList<>(heroes.getOrDefault(uid, new LinkedHashMap<>()).values());
     }
 
+    public List<Hero> sealedOf(String uid) {
+        return new ArrayList<>(sealed.getOrDefault(uid, new LinkedHashMap<>()).values());
+    }
+
     public Learning learningOf(String uid) {
         return learning.getOrDefault(uid, Learning.empty());
     }
@@ -208,6 +213,7 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
         String uid = reauthenticate(password);
         accounts.remove(uid);
         heroes.remove(uid);
+        sealed.remove(uid);
         learning.remove(uid);
         games.remove(uid);
         for (String f : new HashSet<>(friendsOf(uid))) friendsOf(f).remove(uid);
@@ -276,6 +282,23 @@ public final class FakeCloud implements PlayerBackend, SocialBackend {
             Hero h = map.get(id);
             if (h != null) map.put(id, new Hero(h.characterId, h.name, h.imageUrl, h.unlockedAt, true));
         }
+    }
+
+    @Override
+    public List<Hero> loadSealed(String uid) throws CloudException {
+        checkOwner(uid);
+        return sealedOf(uid);
+    }
+
+    @Override
+    public void saveSealed(String uid, Hero hero) {
+        sealed.computeIfAbsent(uid, k -> new LinkedHashMap<>()).put(hero.characterId, hero);
+    }
+
+    @Override
+    public void deleteSealed(String uid, Collection<Integer> characterIds) {
+        Map<Integer, Hero> map = sealed.get(uid);
+        if (map != null) for (Integer id : characterIds) map.remove(id);
     }
 
     @Override

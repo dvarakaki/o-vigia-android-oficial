@@ -508,4 +508,47 @@
     <string name="q_power_ilusao">Votre personnage crée-t-il des illusions ?</string>
     <string name="q_power_jovem">Votre personnage est-il devenu un héros à l\'adolescence ?</string>
     <string name="q_is_villain">Votre personnage est-il un méchant ?</string>
+
+    <!-- Raridade dos personagens e o Vigia do Infinito (compra que libera os lendários). -->
+    <string name="rarity_common">Commun</string>
+    <string name="rarity_rare">Rare</string>
+    <string name="rarity_epic">Épique</string>
+    <string name="rarity_legendary">Légendaire</string>
+    <string name="rarity_cd">Rareté : %1$s</string>
+    <string name="infinite_name">Gardien de l\'Infini</string>
+    <string name="infinite_become">Devenir Gardien de l\'Infini</string>
+    <string name="infinite_become_price">Devenir Gardien de l\'Infini · %1$s</string>
+    <string name="result_sealed_status">Scellé</string>
+    <string name="result_sealed_hint">Vous avez tenté de débloquer un personnage %1$s ! Pour le voir dans le catalogue et le garder dans votre collection, devenez Gardien de l\'Infini. D\'ici là, il vous attend, scellé.</string>
+    <string name="infinite_sheet_title">Devenez Gardien de l\'Infini</string>
+    <string name="infinite_sheet_subtitle">Le Gardien observe tous les univers. Avec vous, aucun personnage ne reste de côté.</string>
+    <string name="infinite_sheet_found">Vous avez tenté de débloquer un personnage %1$s.</string>
+    <string name="infinite_benefit_legendary">Les personnages Légendaires rejoignent votre collection chaque fois que le Gardien les devine</string>
+    <string name="infinite_benefit_detail">La fiche complète de chaque Légendaire, avec biographie et pouvoirs</string>
+    <string name="infinite_benefit_once">Paiement unique, sans abonnement. Valable pour toujours sur ce compte.</string>
+    <string name="infinite_owned_title">Vous êtes Gardien de l\'Infini</string>
+    <string name="infinite_owned_body">Chaque personnage Légendaire que le Gardien devine rejoint votre collection.</string>
+    <string name="infinite_checking">Vérification auprès de Google Play…</string>
+    <string name="infinite_pending">Paiement en attente. Dès que Google Play le confirme, vous devenez Gardien de l\'Infini.</string>
+    <string name="infinite_unavailable">Google Play n\'a pas répondu. Vérifiez votre connexion : l\'achat ne fonctionne qu\'avec l\'appli installée depuis Google Play.</string>
+    <string name="infinite_signed_out">Connectez-vous pour devenir Gardien de l\'Infini : l\'achat est conservé sur votre compte.</string>
+    <string name="infinite_other_account">Ce compte Google Play a déjà fait d\'un autre compte O Vigia un Gardien de l\'Infini. L\'achat reste sur le compte qui l\'a effectué.</string>
+    <string name="infinite_retry">Réessayer</string>
+    <string name="infinite_close">Fermer</string>
+    <string name="infinite_welcome">Bienvenue, Gardien de l\'Infini ! Les Légendaires rejoignent désormais votre collection.</string>
+    <string name="infinite_notice_pending">Paiement en attente : vous deviendrez Gardien de l\'Infini dès que Google Play le confirmera.</string>
+    <string name="infinite_notice_offline">Impossible de joindre Google Play. Réessayez.</string>
+    <string name="infinite_notice_failed">L\'achat n\'a pas abouti.</string>
+    <string name="catalog_cd_sealed">%1$s, personnage %2$s scellé</string>
+    <string name="catalog_locked_hint_legendary">Légendaire. Faites deviner ce personnage au Gardien et devenez Gardien de l\'Infini pour l\'ajouter à votre collection.</string>
+    <string name="catalog_learn_more">En savoir plus</string>
+    <string name="catalog_cd_rarity_progress">%1$s : %2$d sur %3$d</string>
+    <string name="settings_infinite_owned">Actif sur ce compte : les Légendaires rejoignent votre collection.</string>
+    <string name="settings_infinite_offer">Ajoutez les personnages Légendaires à votre collection.</string>
+    <string name="settings_infinite_offer_price">Ajoutez les personnages Légendaires à votre collection. %1$s, paiement unique.</string>
+    <plurals name="infinite_benefit_sealed">
+        <item quantity="one">%1$d Légendaire déjà trouvé arrive tout de suite</item>
+        <item quantity="many">Les %1$d Légendaires déjà trouvés arrivent tout de suite</item>
+        <item quantity="other">Les %1$d Légendaires déjà trouvés arrivent tout de suite</item>
+    </plurals>
 </resources>

@@ -267,4 +267,45 @@
         <item name="android:textColor">@color/white</item>
         <item name="android:textSize">20sp</item>
     </style>
+    <!-- Selo da raridade do personagem (gema + nome); cor e fundo vêm de RarityViews. -->
+    <style name="Widget.OVigia.RarityChip" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:drawablePadding">5dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:letterSpacing">0.06</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingEnd">10dp</item>
+        <item name="android:paddingTop">3dp</item>
+        <item name="android:paddingBottom">3dp</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- Contagem de uma raridade no cabeçalho do catálogo (gema + "3/48"); a cor vem do código. -->
+    <style name="Widget.OVigia.RarityCount" parent="">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:drawablePadding">5dp</item>
+        <item name="android:focusable">true</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- Linha do que o Vigia do Infinito libera: certo âmbar e o texto. -->
+    <style name="Widget.OVigia.InfiniteBenefit" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">10dp</item>
+        <item name="android:drawablePadding">12dp</item>
+        <item name="drawableStartCompat">@drawable/ic_check</item>
+        <item name="drawableTint">@color/rarity_legendary</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textSize">14sp</item>
+    </style>
 </resources>

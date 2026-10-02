@@ -81,6 +81,17 @@ public interface PlayerBackend {
 
     void markHeroesSeen(String uid, Collection<Integer> characterIds);
 
+    /**
+     * Personagens lendários que o Vigia acertou enquanto a conta não era Vigia do
+     * Infinito: esperam lacrados, fora da coleção, e entram nela quando a conta vira.
+     * Moram fora de {@code heroes} para versões antigas do app não os mostrarem como seus.
+     */
+    List<Hero> loadSealed(String uid) throws CloudException;
+
+    void saveSealed(String uid, Hero hero);
+
+    void deleteSealed(String uid, Collection<Integer> characterIds);
+
     // ---------------------------------------------------------------- memória do Vigia
 
     /** Números, favoritos e crenças aprendidas; vazio se a conta ainda não jogou. */

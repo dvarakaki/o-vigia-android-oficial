@@ -9,14 +9,17 @@ import androidx.lifecycle.ViewModelProvider;
 import com.ovigia.app.auth.AccountStore;
 import com.ovigia.app.catalog.CatalogUiState.Filter;
 import com.ovigia.app.catalog.CatalogUiState.Item;
+import com.ovigia.app.catalog.CatalogUiState.RarityProgress;
 import com.ovigia.app.catalog.CatalogUiState.Status;
 import com.ovigia.app.collection.CollectionStore;
 import com.ovigia.app.data.CharacterRepository;
+import com.ovigia.app.data.roster.Rarity;
 import com.ovigia.app.engine.CharacterProfile;
 import com.ovigia.app.util.SearchText;
 
 import java.text.Collator;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +31,9 @@ import java.util.concurrent.Executor;
  * ({@link CollectionStore}) revelados e os demais bloqueados. Se o elenco não
  * carregar (sem cache e sem rede), mostra só os desbloqueados, com nome e foto
  * guardados no desbloqueio.
+ *
+ * Os lendários que o Vigia acertou para quem ainda não é Vigia do Infinito
+ * aparecem lacrados: com nome, sem imagem, junto dos heróis do jogador.
  */
 public class CatalogViewModel extends ViewModel {
 
@@ -42,6 +48,7 @@ public class CatalogViewModel extends ViewModel {
     private List<Item> allItems = new ArrayList<>();
     private int unlockedCount;
     private int totalCount;
+    private List<RarityProgress> rarities = new ArrayList<>();
     private Filter filter = Filter.UNLOCKED;
     private String query = "";
     private boolean started = false;
@@ -62,9 +69,19 @@ public class CatalogViewModel extends ViewModel {
     public void start() {
         if (started) return;
         started = true;
+        load();
+    }
+
+    /** Lê a coleção de novo (a conta virou Vigia do Infinito e os lacrados entraram, por exemplo). */
+    public void reload() {
+        if (started) load();
+    }
+
+    private void load() {
         ioExecutor.execute(() -> {
             String account = accountStore.currentAccountId();
             List<CollectionStore.Entry> unlocked = account == null ? null : collectionStore.list(account);
+            List<CollectionStore.Entry> sealed = account == null ? null : collectionStore.listSealed(account);
             mainExecutor.execute(() -> {
                 accountId = account;
                 if (unlocked == null) {
@@ -74,12 +91,12 @@ public class CatalogViewModel extends ViewModel {
                 repository.loadCharacters(new CharacterRepository.Callback() {
                     @Override
                     public void onSuccess(List<CharacterProfile> profiles, Map<String, String> questionTextByKey) {
-                        build(unlocked, profiles);
+                        build(unlocked, sealed, profiles);
                     }
 
                     @Override
                     public void onError(CharacterRepository.LoadError error) {
-                        build(unlocked, null);
+                        build(unlocked, sealed, null);
                     }
                 });
             });
@@ -99,17 +116,28 @@ public class CatalogViewModel extends ViewModel {
         publish();
     }
 
-    private void build(List<CollectionStore.Entry> unlocked, List<CharacterProfile> roster) {
+    private void build(List<CollectionStore.Entry> unlocked, List<CollectionStore.Entry> sealed,
+                       List<CharacterProfile> roster) {
         Map<Integer, CollectionStore.Entry> unlockedById = new HashMap<>();
         for (CollectionStore.Entry e : unlocked) unlockedById.put(e.characterId, e);
+        Map<Integer, CollectionStore.Entry> sealedById = new HashMap<>();
+        for (CollectionStore.Entry e : sealed) {
+            if (!unlockedById.containsKey(e.characterId)) sealedById.put(e.characterId, e);
+        }
 
         List<Item> items = new ArrayList<>();
+        Map<Rarity, int[]> byRarity = new EnumMap<>(Rarity.class);
         if (roster != null) {
+            for (Rarity r : Rarity.values()) byRarity.put(r, new int[2]);
             for (CharacterProfile p : roster) {
                 CollectionStore.Entry e = unlockedById.remove(p.id);
+                boolean waiting = sealedById.remove(p.id) != null;
+                int[] count = byRarity.get(p.rarity);
+                count[1]++;
+                if (e != null) count[0]++;
                 items.add(e != null
-                        ? new Item(p.id, true, p.name, p.thumbnailUrl, e.savedAt, !e.seenInCatalog)
-                        : new Item(p.id, false, p.name, p.thumbnailUrl, 0, false));
+                        ? new Item(p.id, true, false, p.name, p.thumbnailUrl, e.savedAt, !e.seenInCatalog, p.rarity)
+                        : new Item(p.id, false, waiting, p.name, p.thumbnailUrl, 0, false, p.rarity));
             }
             totalCount = roster.size() + unlockedById.size();
         } else {
@@ -117,7 +145,15 @@ public class CatalogViewModel extends ViewModel {
         }
         // Desbloqueados que não estão no elenco carregado (ou todos, sem elenco).
         for (CollectionStore.Entry e : unlockedById.values()) {
-            items.add(new Item(e.characterId, true, e.name, e.imageUrl, e.savedAt, !e.seenInCatalog));
+            items.add(new Item(e.characterId, true, false, e.name, e.imageUrl, e.savedAt, !e.seenInCatalog, null));
+        }
+        // Lacrados sem elenco: o lacre só existe para lendários.
+        for (CollectionStore.Entry e : sealedById.values()) {
+            items.add(new Item(e.characterId, false, true, e.name, null, 0, false, Rarity.LEGENDARY));
+        }
+        List<RarityProgress> progress = new ArrayList<>();
+        for (Map.Entry<Rarity, int[]> r : byRarity.entrySet()) {
+            progress.add(new RarityProgress(r.getKey(), r.getValue()[0], r.getValue()[1]));
         }
 
         Collator collator = Collator.getInstance(Locale.getDefault());
@@ -125,10 +161,12 @@ public class CatalogViewModel extends ViewModel {
         Map<Integer, String> sortName = new HashMap<>();
         if (roster != null) for (CharacterProfile p : roster) sortName.put(p.id, String.valueOf(p.name));
         for (CollectionStore.Entry e : unlocked) sortName.putIfAbsent(e.characterId, String.valueOf(e.name));
+        for (CollectionStore.Entry e : sealed) sortName.putIfAbsent(e.characterId, String.valueOf(e.name));
         items.sort((a, b) -> collator.compare(sortName.getOrDefault(a.characterId, ""),
                 sortName.getOrDefault(b.characterId, "")));
 
         allItems = items;
+        rarities = progress;
         loaded = true;
         unlockedCount = unlocked.size();
         publish();
@@ -150,12 +188,14 @@ public class CatalogViewModel extends ViewModel {
         String needle = SearchText.fold(query);
         List<Item> visible = new ArrayList<>();
         for (Item item : allItems) {
-            if (filter == Filter.UNLOCKED && !item.unlocked) continue;
-            // Buscar só encontra quem já foi desbloqueado: não revela nomes bloqueados.
-            if (!needle.isEmpty() && (!item.unlocked || !SearchText.fold(item.name).contains(needle))) continue;
+            // Os lacrados ficam junto dos heróis do jogador: ele já os encontrou.
+            boolean found = item.unlocked || item.sealed;
+            if (filter == Filter.UNLOCKED && !found) continue;
+            // Buscar só encontra quem já foi encontrado: não revela nomes bloqueados.
+            if (!needle.isEmpty() && (!found || !SearchText.fold(item.name).contains(needle))) continue;
             visible.add(item);
         }
-        state.setValue(new CatalogUiState(Status.READY, visible, unlockedCount, totalCount, filter, query));
+        state.setValue(new CatalogUiState(Status.READY, visible, unlockedCount, totalCount, rarities, filter, query));
     }
 
     public static final class Factory implements ViewModelProvider.Factory {

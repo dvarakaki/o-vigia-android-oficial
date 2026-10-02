@@ -20,6 +20,7 @@ firebaseBom = "34.19.0"
 googleServices = "4.5.0"
 mlkitTranslate = "17.0.3"
 jsoup = "1.23.2"
+billing = "9.1.0"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -47,6 +48,7 @@ firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
 mlkit-translate = { group = "com.google.mlkit", name = "translate", version.ref = "mlkitTranslate" }
 jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
+billing = { group = "com.android.billingclient", name = "billing", version.ref = "billing" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

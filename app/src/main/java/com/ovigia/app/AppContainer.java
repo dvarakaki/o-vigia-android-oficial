@@ -22,6 +22,10 @@ import com.ovigia.app.engine.CharacterProfile;
 import com.ovigia.app.learning.LearningStore;
 import com.ovigia.app.legacy.LegacyData;
 import com.ovigia.app.legacy.LegacyMigration;
+import com.ovigia.app.premium.Billing;
+import com.ovigia.app.premium.DebugBilling;
+import com.ovigia.app.premium.InfiniteWatcher;
+import com.ovigia.app.premium.PlayBilling;
 import com.ovigia.app.profile.AndroidProfileImages;
 import com.ovigia.app.profile.ProfileImages;
 import com.ovigia.app.settings.AndroidAppCache;
@@ -93,6 +97,8 @@ public final class AppContainer {
     public final AchievementsStore achievementsStore;
     /** Avisa quando uma conquista cai, para a festa aparecer por cima de qualquer tela. */
     public final AchievementsTracker achievements;
+    /** Se a conta logada é Vigia do Infinito (a compra que libera os lendários). */
+    public final InfiniteWatcher infinite;
 
     private final Context appContext;
     private RosterCatalog rosterCatalog;
@@ -114,12 +120,16 @@ public final class AppContainer {
         LegacyData legacy = new LegacyData(app::getFilesDir, app::getNoBackupFilesDir);
         accountStore = new AccountStore(player, new LegacyMigration(player, social, legacy, profileImages));
         learningStore = new LearningStore(player);
-        collectionStore = new CollectionStore(player);
+        // Lendários só entram na coleção de quem é Vigia do Infinito; os outros esperam lacrados.
+        collectionStore = new CollectionStore(player, this::admitsToCollection);
+        Billing billing = BuildConfig.FAKE_BILLING ? new DebugBilling() : new PlayBilling(app, mainExecutor);
+        infinite = new InfiniteWatcher(billing, accountStore::currentAccountId);
         achievementsStore = new AchievementsStore(player);
         // Trocou de conta (ou saiu): o que foi lido da anterior não vale mais.
         accountStore.addSessionListener(learningStore::invalidate);
         accountStore.addSessionListener(collectionStore::invalidate);
         accountStore.addSessionListener(achievementsStore::invalidate);
+        accountStore.addSessionListener(() -> mainExecutor.execute(infinite::onSessionChanged));
 
         ComicVineService comicVine = ApiClient.create();
         characterRepository = new ComicVineCharacterRepository(
@@ -161,6 +171,14 @@ public final class AppContainer {
                 achievementsStore, this::rosterCatalog, ioExecutor, mainExecutor);
         socialRepository = new SocialRepository(social, accountStore, collectionStore, learningStore,
                 this::rosterCatalog, socialExecutor, System::currentTimeMillis);
+        // Virou Vigia do Infinito (agora, ou em outro aparelho): os lendários lacrados entram na coleção.
+        infinite.addInfiniteListener(accountId -> ioExecutor.execute(() -> {
+            if (collectionStore.releaseSealed(accountId).isEmpty()) return;
+            achievements.sync();
+            socialRepository.publishQuietly();
+        }));
+        // A compra mora no Google Play: pergunta logo na abertura, para a primeira partida já saber.
+        infinite.refresh();
 
         // Aquece as preferências e a conta fora da main thread antes da primeira tela que precisa delas.
         // Ler a conta primeiro garante que o que veio das versões antigas já subiu antes de qualquer
@@ -186,6 +204,12 @@ public final class AppContainer {
                 // Ignorado: a tela que realmente precisar do elenco tenta de novo e mostra o erro.
             }
         });
+    }
+
+    /** Lendários só para o Vigia do Infinito. Bloqueante (lê o roster na primeira vez): fora da main thread. */
+    private boolean admitsToCollection(String accountId, int characterId) {
+        RosterCatalog roster = rosterCatalog();
+        return roster == null || !roster.rarityOf(characterId).requiresInfinite() || infinite.isInfinite(accountId);
     }
 
     /**

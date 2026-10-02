@@ -508,4 +508,47 @@
     <string name="q_power_ilusao">¿Tu personaje crea ilusiones?</string>
     <string name="q_power_jovem">¿Tu personaje empezó a ser héroe siendo adolescente?</string>
     <string name="q_is_villain">¿Tu personaje es un villano?</string>
+
+    <!-- Raridade dos personagens e o Vigia do Infinito (compra que libera os lendários). -->
+    <string name="rarity_common">Común</string>
+    <string name="rarity_rare">Raro</string>
+    <string name="rarity_epic">Épico</string>
+    <string name="rarity_legendary">Legendario</string>
+    <string name="rarity_cd">Rareza: %1$s</string>
+    <string name="infinite_name">Vigilante del Infinito</string>
+    <string name="infinite_become">Hazte Vigilante del Infinito</string>
+    <string name="infinite_become_price">Hazte Vigilante del Infinito · %1$s</string>
+    <string name="result_sealed_status">Sellado</string>
+    <string name="result_sealed_hint">¡Intentaste desbloquear un personaje %1$s! Para verlo en el catálogo y guardarlo en tu colección, hazte Vigilante del Infinito. Hasta entonces, te espera sellado.</string>
+    <string name="infinite_sheet_title">Conviértete en Vigilante del Infinito</string>
+    <string name="infinite_sheet_subtitle">El Vigilante observa todos los universos. Contigo, ningún personaje se queda fuera.</string>
+    <string name="infinite_sheet_found">Intentaste desbloquear un personaje %1$s.</string>
+    <string name="infinite_benefit_legendary">Los personajes Legendarios entran en tu colección cada vez que el Vigilante acierte</string>
+    <string name="infinite_benefit_detail">La ficha completa de cada Legendario, con biografía y poderes</string>
+    <string name="infinite_benefit_once">Pago único, sin suscripción. Vale para siempre en esta cuenta.</string>
+    <string name="infinite_owned_title">Eres un Vigilante del Infinito</string>
+    <string name="infinite_owned_body">Todo personaje Legendario que el Vigilante acierte entra en tu colección.</string>
+    <string name="infinite_checking">Consultando Google Play…</string>
+    <string name="infinite_pending">Pago pendiente. En cuanto Google Play lo confirme, te conviertes en Vigilante del Infinito.</string>
+    <string name="infinite_unavailable">Google Play no respondió. Revisa la conexión: la compra solo funciona con la app instalada desde Google Play.</string>
+    <string name="infinite_signed_out">Inicia sesión para hacerte Vigilante del Infinito: la compra queda guardada en tu cuenta.</string>
+    <string name="infinite_other_account">Esta cuenta de Google Play ya hizo Vigilante del Infinito a otra cuenta de O Vigia. La compra queda con la cuenta que la hizo.</string>
+    <string name="infinite_retry">Reintentar</string>
+    <string name="infinite_close">Cerrar</string>
+    <string name="infinite_welcome">¡Bienvenido, Vigilante del Infinito! Ahora los Legendarios entran en tu colección.</string>
+    <string name="infinite_notice_pending">Pago pendiente: serás Vigilante del Infinito en cuanto Google Play lo confirme.</string>
+    <string name="infinite_notice_offline">Sin conexión con Google Play. Inténtalo de nuevo.</string>
+    <string name="infinite_notice_failed">La compra no se completó.</string>
+    <string name="catalog_cd_sealed">%1$s, personaje %2$s sellado</string>
+    <string name="catalog_locked_hint_legendary">Legendario. Haz que el Vigilante acierte este personaje y hazte Vigilante del Infinito para llevarlo a tu colección.</string>
+    <string name="catalog_learn_more">Más información</string>
+    <string name="catalog_cd_rarity_progress">%1$s: %2$d de %3$d</string>
+    <string name="settings_infinite_owned">Activo en esta cuenta: los Legendarios entran en tu colección.</string>
+    <string name="settings_infinite_offer">Lleva los personajes Legendarios a tu colección.</string>
+    <string name="settings_infinite_offer_price">Lleva los personajes Legendarios a tu colección. %1$s, pago único.</string>
+    <plurals name="infinite_benefit_sealed">
+        <item quantity="one">%1$d Legendario que ya encontraste entra al instante</item>
+        <item quantity="many">Los %1$d Legendarios que ya encontraste entran al instante</item>
+        <item quantity="other">Los %1$d Legendarios que ya encontraste entran al instante</item>
+    </plurals>
 </resources>

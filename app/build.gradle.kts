@@ -27,6 +27,9 @@ if (file("google-services.json").exists()) {
     apply(plugin = libs.plugins.google.services.get().pluginId)
 }
 val firebaseEmulatorHost: String = localProps.getProperty("FIREBASE_EMULATOR_HOST", "")
+// Loja de mentira para o Vigia do Infinito (só no debug): FAKE_BILLING=true no local.properties
+// deixa testar a compra sem o app estar no Google Play. O release sempre usa o Google Play.
+val fakeBilling: Boolean = localProps.getProperty("FAKE_BILLING", "false").trim().toBoolean()
 
 // Assinatura de release: keystore.properties (fora do git) ou variáveis de ambiente no CI.
 val keystoreProps = rootProperties("keystore.properties")
@@ -53,6 +56,7 @@ android {
         buildConfigField("String", "COMIC_VINE_API_KEY", "\"$comicVineApiKey\"")
         buildConfigField("String", "COMIC_VINE_BASE_URL", "\"$comicVineBaseUrl\"")
         buildConfigField("String", "FIREBASE_EMULATOR_HOST", "\"\"")
+        buildConfigField("boolean", "FAKE_BILLING", "false")
     }
 
     signingConfigs {
@@ -72,6 +76,7 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             buildConfigField("String", "FIREBASE_EMULATOR_HOST", "\"$firebaseEmulatorHost\"")
+            buildConfigField("boolean", "FAKE_BILLING", "$fakeBilling")
         }
         release {
             // R8: remove código/recursos não usados e ofusca. Regras em src/main/keepRules.
@@ -146,6 +151,9 @@ dependencies {
     // Tradução dos textos da Comic Vine (em inglês): no aparelho, sem chave nem custo
     implementation(libs.mlkit.translate)
     implementation(libs.jsoup)
+
+    // Vigia do Infinito: compra única pelo Google Play
+    implementation(libs.billing)
 
     testImplementation(libs.junit)
     testImplementation(libs.arch.core.testing)

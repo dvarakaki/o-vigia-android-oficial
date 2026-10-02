@@ -502,4 +502,46 @@
     <string name="q_power_ilusao">Does your character create illusions?</string>
     <string name="q_power_jovem">Did your character start out as a teenage hero?</string>
     <string name="q_is_villain">Is your character a villain?</string>
+
+    <!-- Raridade dos personagens e o Vigia do Infinito (compra que libera os lendários). -->
+    <string name="rarity_common">Common</string>
+    <string name="rarity_rare">Rare</string>
+    <string name="rarity_epic">Epic</string>
+    <string name="rarity_legendary">Legendary</string>
+    <string name="rarity_cd">Rarity: %1$s</string>
+    <string name="infinite_name">Infinite Watcher</string>
+    <string name="infinite_become">Become an Infinite Watcher</string>
+    <string name="infinite_become_price">Become an Infinite Watcher · %1$s</string>
+    <string name="result_sealed_status">Sealed</string>
+    <string name="result_sealed_hint">You tried to unlock a %1$s character! To see it in your catalog and keep it in your collection, become an Infinite Watcher. Until then, it waits for you, sealed.</string>
+    <string name="infinite_sheet_title">Become an Infinite Watcher</string>
+    <string name="infinite_sheet_subtitle">The Watcher sees every universe. With you, no character is left out.</string>
+    <string name="infinite_sheet_found">You tried to unlock a %1$s character.</string>
+    <string name="infinite_benefit_legendary">Legendary characters join your collection whenever the Watcher guesses them</string>
+    <string name="infinite_benefit_detail">The full profile of every Legendary, with biography and powers</string>
+    <string name="infinite_benefit_once">One-time payment, no subscription. Yours forever on this account.</string>
+    <string name="infinite_owned_title">You are an Infinite Watcher</string>
+    <string name="infinite_owned_body">Every Legendary character the Watcher guesses joins your collection.</string>
+    <string name="infinite_checking">Checking Google Play…</string>
+    <string name="infinite_pending">Payment pending. As soon as Google Play confirms it, you become an Infinite Watcher.</string>
+    <string name="infinite_unavailable">Google Play didn\'t respond. Check your connection: purchases only work with the app installed from Google Play.</string>
+    <string name="infinite_signed_out">Sign in to become an Infinite Watcher: the purchase is kept on your account.</string>
+    <string name="infinite_other_account">This Google Play account already made another O Vigia account an Infinite Watcher. The purchase stays with the account that bought it.</string>
+    <string name="infinite_retry">Try again</string>
+    <string name="infinite_close">Close</string>
+    <string name="infinite_welcome">Welcome, Infinite Watcher! Legendaries now join your collection.</string>
+    <string name="infinite_notice_pending">Payment pending: you\'ll become an Infinite Watcher as soon as Google Play confirms.</string>
+    <string name="infinite_notice_offline">Couldn\'t reach Google Play. Try again.</string>
+    <string name="infinite_notice_failed">The purchase wasn\'t completed.</string>
+    <string name="catalog_cd_sealed">%1$s, sealed %2$s character</string>
+    <string name="catalog_locked_hint_legendary">Legendary. Get the Watcher to guess this character and become an Infinite Watcher to add it to your collection.</string>
+    <string name="catalog_learn_more">Learn more</string>
+    <string name="catalog_cd_rarity_progress">%1$s: %2$d of %3$d</string>
+    <string name="settings_infinite_owned">Active on this account: Legendaries join your collection.</string>
+    <string name="settings_infinite_offer">Add Legendary characters to your collection.</string>
+    <string name="settings_infinite_offer_price">Add Legendary characters to your collection. %1$s, one-time payment.</string>
+    <plurals name="infinite_benefit_sealed">
+        <item quantity="one">%1$d Legendary you already found joins right away</item>
+        <item quantity="other">The %1$d Legendaries you already found join right away</item>
+    </plurals>
 </resources>

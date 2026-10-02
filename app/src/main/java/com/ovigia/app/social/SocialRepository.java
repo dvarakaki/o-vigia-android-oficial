@@ -27,7 +27,8 @@ import java.util.function.Supplier;
  * bio, banner, números, heróis e conquistas) é publicado sempre que algo muda.
  *
  * Amigos também trocam heróis, 1 por 1 ({@link TradeOffer}): ninguém perde o
- * seu, cada um ganha o do outro.
+ * seu, cada um ganha o do outro. Lendários ficam fora das trocas
+ * ({@link TradeSuggestions#isTradeable}).
  *
  * Operações bloqueantes (disco e rede): chamar no executor social.
  */
@@ -225,7 +226,11 @@ public final class SocialRepository {
         return hub.withTrades(me, trades, completed);
     }
 
-    /** O amigo aceitou: o herói pedido entra na coleção e a proposta sai do servidor. */
+    /**
+     * O amigo aceitou: o herói pedido entra na coleção e a proposta sai do servidor.
+     * (Um lendário pedido por uma versão antiga do app fica lacrado para quem não é
+     * Vigia do Infinito — a coleção decide.)
+     */
     private boolean complete(Session session, TradeOffer trade) {
         collectionStore.importEntry(session.account.id, trade.want.characterId, trade.want.name,
                 trade.want.imageUrl, clock.getAsLong());
@@ -333,7 +338,10 @@ public final class SocialRepository {
         Session session = requireReady();
         String accountId = session.account.id;
         Set<Integer> theirs = idsOf(friendHeroes);
+        RosterCatalog catalog = RosterCatalog.orNull(roster);
         if (want.characterId == offer.characterId
+                || !TradeSuggestions.isTradeable(want.characterId, catalog)
+                || !TradeSuggestions.isTradeable(offer.characterId, catalog)
                 || collectionStore.contains(accountId, want.characterId)
                 || !collectionStore.contains(accountId, offer.characterId)
                 || !theirs.contains(want.characterId)
@@ -375,6 +383,7 @@ public final class SocialRepository {
         String accountId = session.account.id;
         if (!trade.to.uid.equals(session.card.uid)) throw new SocialException(SocialException.Error.PERMISSION_DENIED);
         if (chosen.characterId == trade.want.characterId
+                || !TradeSuggestions.isTradeable(chosen.characterId, RosterCatalog.orNull(roster))
                 || collectionStore.contains(accountId, chosen.characterId)
                 || !collectionStore.contains(accountId, trade.want.characterId)) {
             throw new SocialException(SocialException.Error.TRADE_INVALID);

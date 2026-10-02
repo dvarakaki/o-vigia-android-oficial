@@ -16,9 +16,11 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
@@ -121,6 +123,9 @@ public final class ComicVineCharacterRepository implements CharacterRepository {
         }
 
         List<Character> characters = diskCache.readFresh();
+        // Cache de uma versão com elenco menor: os personagens novos só viriam quando ele
+        // vencesse. Vale buscar de novo agora (e o cache antigo segue de reserva sem rede).
+        if (characters != null && !covers(characters, roster)) characters = null;
         if (characters == null) {
             try {
                 if (!apiConfigured) throw new Failure(LoadError.NOT_CONFIGURED);
@@ -145,6 +150,16 @@ public final class ComicVineCharacterRepository implements CharacterRepository {
 
         cachedQuestionKeys = Collections.unmodifiableList(new ArrayList<>(questionTextByKey.keySet()));
         cachedRawProfiles = Collections.unmodifiableList(profiles);
+    }
+
+    /** O cache tem todos os personagens do elenco atual. */
+    private static boolean covers(List<Character> characters, RosterCatalog roster) {
+        Set<Integer> cached = new HashSet<>();
+        for (Character c : characters) cached.add(c.id);
+        for (RosterCatalog.Entry e : roster.entries()) {
+            if (!cached.contains(e.id)) return false;
+        }
+        return true;
     }
 
     /**

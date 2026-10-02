@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gaveta do Vigia do Infinito: o que a compra libera, o preço do Google Play e o estado da compra. -->
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_sheet">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:paddingHorizontal="24dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="24dp">
+
+        <View
+            android:layout_width="40dp"
+            android:layout_height="4dp"
+            android:background="@drawable/bg_sheet_handle" />
+
+        <FrameLayout
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_marginTop="20dp"
+            android:background="@drawable/bg_infinite_disc">
+
+            <ImageView
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_gravity="center"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_infinity"
+                app:tint="@color/rarity_legendary" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/tvInfiniteTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:accessibilityHeading="true"
+            android:gravity="center"
+            android:text="@string/infinite_sheet_title"
+            android:textAppearance="@style/TextAppearance.OVigia.Title" />
+
+        <TextView
+            android:id="@+id/tvInfiniteFound"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:textColor="@color/rarity_legendary"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:text="@string/infinite_sheet_found"
+            tools:visibility="visible" />
+
+        <TextView
+            android:id="@+id/tvInfiniteSubtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:text="@string/infinite_sheet_subtitle"
+            android:textColor="@color/white_70"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:id="@+id/benefits"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/Widget.OVigia.InfiniteBenefit"
+                android:text="@string/infinite_benefit_legendary" />
+
+            <TextView
+                android:id="@+id/tvBenefitSealed"
+                style="@style/Widget.OVigia.InfiniteBenefit"
+                android:visibility="gone"
+                tools:text="Os 3 Lendários que você já encontrou entram na hora"
+                tools:visibility="visible" />
+
+            <TextView
+                style="@style/Widget.OVigia.InfiniteBenefit"
+                android:text="@string/infinite_benefit_detail" />
+
+            <TextView
+                style="@style/Widget.OVigia.InfiniteBenefit"
+                android:text="@string/infinite_benefit_once" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/statusRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <com.google.android.material.progressindicator.CircularProgressIndicator
+                android:id="@+id/statusProgress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="10dp"
+                android:importantForAccessibility="no"
+                android:indeterminate="true"
+                app:indicatorColor="@color/rarity_legendary"
+                app:indicatorSize="18dp"
+                app:trackThickness="2dp" />
+
+            <TextView
+                android:id="@+id/tvInfiniteStatus"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:accessibilityLiveRegion="polite"
+                android:textColor="@color/white_70"
+                android:textSize="13sp"
+                tools:text="@string/infinite_checking" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnInfiniteBuy"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="18dp"
+            android:text="@string/infinite_become"
+            android:textSize="16sp"
+            tools:text="@string/infinite_become_price" />
+
+        <Button
+            android:id="@+id/btnInfiniteSecondary"
+            style="@style/Widget.OVigia.Button.Outlined"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="10dp"
+            android:textSize="16sp"
+            android:visibility="gone"
+            tools:text="@string/infinite_retry"
+            tools:visibility="visible" />
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

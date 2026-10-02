@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Fim da partida com personagem conhecido: mensagem, personagem e o desbloqueio no catálogo. -->
+<!--
+  Fim da partida com personagem conhecido: mensagem, personagem, raridade e o desbloqueio no
+  catálogo (ou o lacre, para um lendário de quem ainda não é Vigia do Infinito).
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
@@ -88,6 +91,12 @@
             android:textAppearance="@style/TextAppearance.OVigia.Body"
             android:textStyle="bold"
             tools:text="Wolverine" />
+
+        <TextView
+            android:id="@+id/tvRarity"
+            style="@style/Widget.OVigia.RarityChip"
+            android:layout_marginTop="6dp"
+            tools:text="@string/rarity_legendary" />
 
         <!-- Situação no catálogo: "Novo herói desbloqueado!", "Já está no seu catálogo"… -->
         <TextView

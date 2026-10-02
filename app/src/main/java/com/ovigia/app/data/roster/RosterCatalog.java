@@ -1,7 +1,6 @@
 package com.ovigia.app.data.roster;
 
 import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
@@ -17,7 +16,7 @@ import java.util.function.Supplier;
 
 /**
  * Elenco jogável e classificações curadas à mão (times, poderes, crença de
- * vilania, reconhecimento mainstream), lidos de {@code assets/roster.json}.
+ * vilania, reconhecimento mainstream, raridade), lidos de {@code assets/roster.json}.
  *
  * A Comic Vine não expõe esses dados de forma utilizável no endpoint de
  * lista ({@code teams}/{@code powers} só existem no detalhe, um personagem por
@@ -45,6 +44,9 @@ public final class RosterCatalog {
         for (Entry e : doc.characters) {
             if (e.teams == null) e.teams = Collections.emptyList();
             if (e.powers == null) e.powers = Collections.emptyList();
+            if (e.rarity != null && Rarity.fromKey(e.rarity) == null) {
+                throw new JsonParseException("raridade desconhecida no roster.json: " + e.id + " → " + e.rarity);
+            }
             if (byId.put(e.id, e) != null) {
                 throw new JsonParseException("id duplicado no roster.json: " + e.id);
             }
@@ -70,11 +72,17 @@ public final class RosterCatalog {
         return entriesById.get(characterId);
     }
 
+    /** Raridade do personagem; {@link Rarity#COMMON} se ele não faz parte do elenco. */
+    public Rarity rarityOf(int characterId) {
+        Entry e = entriesById.get(characterId);
+        return e != null ? e.rarity() : Rarity.COMMON;
+    }
+
     public int size() {
         return entriesById.size();
     }
 
-    @VisibleForTesting
+    /** Todas as entradas, na ordem do arquivo. */
     public Iterable<Entry> entries() {
         return entriesById.values();
     }
@@ -102,5 +110,12 @@ public final class RosterCatalog {
         @SerializedName("villain") public double villain;
         /** Reconhecimento de público casual (MCU, X-Men clássicos, vilões-símbolo). */
         @SerializedName("mainstream") public boolean mainstream;
+        /** Chave de {@link Rarity} ({@code "comum"}, {@code "lendario"}…); ausente vale comum. */
+        @SerializedName("rarity") public String rarity;
+
+        public Rarity rarity() {
+            Rarity parsed = Rarity.fromKey(rarity);
+            return parsed != null ? parsed : Rarity.COMMON;
+        }
     }
 }

@@ -85,6 +85,7 @@ final class GameNavigator {
         args.putString(ResultFragment.ARG_IMAGE_URL, event.imageUrl);
         args.putString(ResultFragment.ARG_MESSAGE, message);
         args.putString(ResultFragment.ARG_OUTCOME, event.outcome.name());
+        if (event.rarity != null) args.putString(ResultFragment.ARG_RARITY, event.rarity.name());
         nav.navigate(R.id.resultFragment, args, FadeNavOptions.popUpTo(R.id.homeFragment, false));
     }
 

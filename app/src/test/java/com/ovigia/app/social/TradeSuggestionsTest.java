@@ -44,6 +44,20 @@ public class TradeSuggestionsTest {
     }
 
     @Test
+    public void legendaries_neverEnterATrade() {
+        RosterCatalog withLegendary = RosterCatalog.parse(new StringReader("{\"characters\":["
+                + "{\"id\":1,\"teams\":[],\"rarity\":\"lendario\"},"
+                + "{\"id\":2,\"teams\":[],\"rarity\":\"epico\"}"
+                + "]}"));
+        List<TradeSuggestions.Pick> picks = TradeSuggestions.rank(heroes(1, 2), Collections.emptySet(),
+                withLegendary);
+
+        assertEquals(Arrays.toString(new int[]{2}), Arrays.toString(order(picks)));
+        assertEquals(false, TradeSuggestions.isTradeable(1, withLegendary));
+        assertEquals("sem elenco não dá para saber, e vale", true, TradeSuggestions.isTradeable(1, null));
+    }
+
+    @Test
     public void theAchievementCloserToDone_weighsMore() {
         // Com 3 dos 5 Vingadores, o 4 deixa a conquista em 4/5; o vilão famoso começa
         // "Eu tenho um exército" (1/5) e o do Quarteto, "Reunião de família" (1/4).

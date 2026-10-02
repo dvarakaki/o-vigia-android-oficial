@@ -43,6 +43,15 @@
             android:textAppearance="@style/TextAppearance.OVigia.Body"
             android:textStyle="bold"
             tools:text="Wolverine" />
+
+        <!-- Raridade do chute: quanto menos conhecido, mais raro. -->
+        <TextView
+            android:id="@+id/tvGuessRarity"
+            style="@style/Widget.OVigia.RarityChip"
+            android:layout_marginTop="8dp"
+            android:visibility="invisible"
+            tools:text="@string/rarity_legendary"
+            tools:visibility="visible" />
     </LinearLayout>
 
     <LinearLayout

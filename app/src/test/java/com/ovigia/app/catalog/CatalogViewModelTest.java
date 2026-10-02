@@ -8,6 +8,7 @@ import com.ovigia.app.catalog.CatalogUiState.Filter;
 import com.ovigia.app.catalog.CatalogUiState.Item;
 import com.ovigia.app.collection.CollectionStore;
 import com.ovigia.app.data.CharacterRepository;
+import com.ovigia.app.data.roster.Rarity;
 import com.ovigia.app.engine.CharacterProfile;
 import com.ovigia.app.learning.LearningStore.Outcome;
 
@@ -140,6 +141,60 @@ public class CatalogViewModelTest {
     }
 
     @Test
+    public void sealedLegendaries_showTheirName_butNotTheImage_besideMyHeroes() {
+        CollectionStore gated = new CollectionStore(cloud, (account, id) -> id != 4);
+        collection = gated;
+        String account = accounts.currentAccount().id;
+        assertEquals(CollectionStore.Unlock.SEALED, gated.unlock(account, 4, "Visão", "img-4"));
+        unlock(1, "Hulk");
+
+        CatalogUiState state = started().state().getValue();
+        assertEquals("lacrado não conta como desbloqueado", 1, state.unlockedCount);
+        assertEquals("meus heróis + o lacrado", 2, state.items.size());
+        Item sealed = state.items.get(1);
+        assertEquals("Visão", sealed.name);
+        assertTrue(sealed.sealed);
+        assertFalse(sealed.unlocked);
+        assertNull("a imagem é do Vigia do Infinito", sealed.imageUrl);
+        assertEquals(Rarity.LEGENDARY, sealed.rarity);
+    }
+
+    @Test
+    public void reload_showsReleasedHeroes() {
+        boolean[] infinite = {false};
+        collection = new CollectionStore(cloud, (account, id) -> id != 4 || infinite[0]);
+        String account = accounts.currentAccount().id;
+        collection.unlock(account, 4, "Visão", "img-4");
+        CatalogViewModel vm = started();
+        assertEquals(0, vm.state().getValue().unlockedCount);
+
+        infinite[0] = true;
+        collection.releaseSealed(account);
+        vm.reload();
+        CatalogUiState state = vm.state().getValue();
+        assertEquals(1, state.unlockedCount);
+        assertTrue(state.items.get(0).unlocked);
+        assertTrue("entra com a revelação", state.items.get(0).revealNow);
+    }
+
+    @Test
+    public void progress_isCountedPerRarity() {
+        unlock(1, "Hulk");
+        CatalogUiState state = started().state().getValue();
+
+        assertEquals(Rarity.values().length, state.rarities.size());
+        for (CatalogUiState.RarityProgress p : state.rarities) {
+            if (p.rarity == Rarity.COMMON) {
+                assertEquals(1, p.unlocked);
+                assertEquals(2, p.total);
+            } else if (p.rarity == Rarity.LEGENDARY) {
+                assertEquals(0, p.unlocked);
+                assertEquals(1, p.total);
+            }
+        }
+    }
+
+    @Test
     public void withoutSession_asksForLogin() {
         accounts.signOut();
         assertEquals(CatalogUiState.Status.SIGNED_OUT, started().state().getValue().status);
@@ -166,7 +221,10 @@ public class CatalogViewModelTest {
             String[] names = {"Hulk", "Homem-Aranha", "Thor", "Visão"};
             for (int i = 0; i < names.length; i++) {
                 int id = i + 1;
-                cast.add(new CharacterProfile(id, names[i], "img-" + id, "thumb-" + id, new HashMap<>(), 0, false));
+                // Visão é o lendário do elenco de teste; Thor, épico; os outros, comuns.
+                Rarity rarity = id == 4 ? Rarity.LEGENDARY : id == 3 ? Rarity.EPIC : Rarity.COMMON;
+                cast.add(new CharacterProfile(id, names[i], "img-" + id, "thumb-" + id, new HashMap<>(), 0, false,
+                        rarity));
             }
             callback.onSuccess(cast, new HashMap<>());
         }

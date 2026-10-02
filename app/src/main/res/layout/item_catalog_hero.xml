@@ -83,6 +83,19 @@
             app:layout_constraintStart_toStartOf="parent"
             tools:text="Wolverine" />
 
+        <!-- Gema da raridade (o catálogo mostra; a troca não). -->
+        <ImageView
+            android:id="@+id/imageRarity"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_margin="6dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_rarity_gem"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:visibility="visible" />
+
         <!-- Selo da troca ("Sugerido", "Pedido"…); o catálogo não usa. -->
         <TextView
             android:id="@+id/tvBadge"

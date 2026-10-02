@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
+import android.widget.TextView;
 import android.view.animation.AnimationUtils;
 
 import androidx.annotation.NonNull;
@@ -22,15 +23,20 @@ import com.ovigia.app.R;
 import com.ovigia.app.catalog.CatalogUiState;
 import com.ovigia.app.catalog.CatalogUiState.Filter;
 import com.ovigia.app.catalog.CatalogViewModel;
+import com.ovigia.app.data.roster.Rarity;
 import com.ovigia.app.databinding.FragmentCatalogBinding;
 import com.ovigia.app.ui.FadeNavOptions;
+import com.ovigia.app.premium.InfiniteState;
 import com.ovigia.app.ui.Motion;
+import com.ovigia.app.ui.RarityViews;
 import com.ovigia.app.ui.SystemBarInsets;
 import com.ovigia.app.ui.auth.AuthFragment;
+import com.ovigia.app.ui.premium.InfiniteSheet;
 
 /**
- * Catálogo de heróis da conta: progresso, filtro (meus / todos), busca e grade.
- * Cartas desbloqueadas abrem a ficha; bloqueadas explicam como desbloquear.
+ * Catálogo de heróis da conta: progresso (no total e por raridade), filtro
+ * (meus / todos), busca e grade. Cartas desbloqueadas abrem a ficha; bloqueadas
+ * explicam como desbloquear; lacradas oferecem o Vigia do Infinito.
  */
 public class CatalogFragment extends Fragment {
 
@@ -43,6 +49,8 @@ public class CatalogFragment extends Fragment {
     private final Motion motion = new Motion();
     /** Filtro da última lista mostrada: trocar de filtro refaz a entrada em cascata. */
     private Filter shownFilter;
+    /** Se a conta era Vigia do Infinito da última vez: virar recarrega (os lacrados entram). */
+    private boolean wasInfinite;
 
     public CatalogFragment() {
         super(R.layout.fragment_catalog);
@@ -75,6 +83,14 @@ public class CatalogFragment extends Fragment {
                 Bundle args = new Bundle();
                 args.putInt(HeroDetailFragment.ARG_CHARACTER_ID, item.characterId);
                 nav().navigate(R.id.heroDetailFragment, args, FadeNavOptions.builder().build());
+            } else if (item.sealed) {
+                InfiniteSheet.show(this, item.rarity != null ? item.rarity : Rarity.LEGENDARY);
+            } else if (item.rarity != null && item.rarity.requiresInfinite() && !container.infinite.isInfinite(
+                    container.accountStore.currentAccountId())) {
+                Rarity rarity = item.rarity;
+                Snackbar.make(binding.getRoot(), R.string.catalog_locked_hint_legendary, Snackbar.LENGTH_LONG)
+                        .setAction(R.string.catalog_learn_more, v -> InfiniteSheet.show(this, rarity))
+                        .show();
             } else {
                 Snackbar.make(binding.getRoot(), R.string.catalog_locked_hint, Snackbar.LENGTH_SHORT).show();
             }
@@ -97,6 +113,14 @@ public class CatalogFragment extends Fragment {
 
         viewModel.state().observe(getViewLifecycleOwner(), this::render);
         viewModel.start();
+
+        InfiniteState initial = container.infinite.state().getValue();
+        wasInfinite = initial != null && initial.isInfinite();
+        container.infinite.state().observe(getViewLifecycleOwner(), infinite -> {
+            // Virou Vigia do Infinito: a liberação dos lacrados já está na fila de I/O, antes desta leitura.
+            if (infinite.isInfinite() && !wasInfinite) viewModel.reload();
+            wasInfinite = infinite.isInfinite();
+        });
     }
 
     @Override
@@ -115,6 +139,30 @@ public class CatalogFragment extends Fragment {
     private boolean isCurrent() {
         NavDestination current = nav().getCurrentDestination();
         return isAdded() && current != null && current.getId() == R.id.catalogFragment;
+    }
+
+    private void renderRarities(CatalogUiState state) {
+        binding.rarityRow.setVisibility(state.rarities.isEmpty() ? View.GONE : View.VISIBLE);
+        for (CatalogUiState.RarityProgress progress : state.rarities) {
+            TextView view = rarityView(progress.rarity);
+            int color = RarityViews.color(requireContext(), progress.rarity);
+            int size = Math.round(view.getTextSize() * 1.1f);
+            view.setCompoundDrawablesRelative(RarityViews.gem(requireContext(), color, size), null, null, null);
+            view.setTextColor(color);
+            view.setText(getString(R.string.catalog_rarity_count, progress.unlocked, progress.total));
+            view.setContentDescription(getString(R.string.catalog_cd_rarity_progress,
+                    getString(RarityViews.label(progress.rarity)), progress.unlocked, progress.total));
+        }
+    }
+
+    private TextView rarityView(Rarity rarity) {
+        switch (rarity) {
+            case LEGENDARY: return binding.tvRarityLegendary;
+            case EPIC: return binding.tvRarityEpic;
+            case RARE: return binding.tvRarityRare;
+            case COMMON:
+            default: return binding.tvRarityCommon;
+        }
     }
 
     private void render(CatalogUiState state) {
@@ -145,6 +193,7 @@ public class CatalogFragment extends Fragment {
         binding.tvPercent.setText(getString(R.string.percent_value, state.progressPercent()));
         binding.progressBar.setVisibility(state.hasRoster() ? View.VISIBLE : View.GONE);
         binding.progressBar.setProgressCompat(state.progressPercent(), true);
+        renderRarities(state);
         binding.progressCard.setContentDescription(state.hasRoster()
                 ? getString(R.string.catalog_cd_progress, state.unlockedCount, state.totalCount)
                 : binding.tvTotalCount.getText());
