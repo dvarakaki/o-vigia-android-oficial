@@ -81,7 +81,7 @@ public final class RosterSync {
     }
 
     /** Só os personagens ativos, no formato do {@code roster.json}. */
-    private static JsonObject document(JsonObject response) {
+    static JsonObject document(JsonObject response) {
         JsonArray characters = new JsonArray();
         for (JsonObject c : Json.objects(Json.arr(response, "characters"))) {
             JsonElement active = c.get("active");
@@ -93,6 +93,7 @@ public final class RosterSync {
             entry.add("powers", c.has("powers") ? c.get("powers") : new JsonArray());
             entry.add("villain", c.get("villain"));
             entry.add("mainstream", c.get("mainstream"));
+            if (c.has("rarity")) entry.add("rarity", c.get("rarity"));
             characters.add(entry);
         }
         JsonObject doc = new JsonObject();
